@@ -1,0 +1,7 @@
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: kubrid-controller-cert-issuer
+  namespace: kubrid-system
+spec:
+  selfSigned: {}

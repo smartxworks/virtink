@@ -1,0 +1,5 @@
+FROM smartxworks/kubrid-kernel-base
+
+RUN apk add curl
+
+RUN curl -sLo /vmlinux http://192.168.17.20/kubrid/kernels/vmlinux-5.15.12 && chmod +x /vmlinux

@@ -1,0 +1,24 @@
+apiVersion: skaffold/v2beta28
+kind: Config
+metadata:
+  name: kubrid
+build:
+  local:
+    useBuildkit: true
+  artifacts:
+    - image: kubrid-controller
+      docker:
+        dockerfile: build/kubrid-controller/Dockerfile
+      requires:
+        - image: kubrid-prerunner
+          alias: PRERUNNER_IMAGE
+    - image: kubrid-daemon
+      docker:
+        dockerfile: build/kubrid-daemon/Dockerfile
+    - image: kubrid-prerunner
+      docker:
+        dockerfile: build/kubrid-prerunner/Dockerfile
+deploy:
+  kustomize:
+    paths:
+      - deploy

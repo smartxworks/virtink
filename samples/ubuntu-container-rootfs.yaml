@@ -1,0 +1,31 @@
+apiVersion: kubrid.smartx.com/v1alpha1
+kind: VirtualMachine
+metadata:
+  name: ubuntu-container-rootfs
+spec:
+  instance:
+    memory:
+      size: 1Gi
+    kernel:
+      image: smartxworks/kubrid-kernel-5.15.12
+      cmdline: "console=ttyS0 root=/dev/vda rw"
+    disks:
+      - name: ubuntu
+      - name: cloud-init
+    interfaces:
+      - name: pod
+  volumes:
+    - name: ubuntu
+      containerRootfs:
+        image: smartxworks/kubrid-container-rootfs-ubuntu
+        size: 4Gi
+    - name: cloud-init
+      cloudInit:
+        userData: |-
+          #cloud-config
+          password: password
+          chpasswd: { expire: False }
+          ssh_pwauth: True
+  networks:
+    - name: pod
+      pod: {}
