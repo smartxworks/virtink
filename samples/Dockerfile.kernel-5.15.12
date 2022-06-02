@@ -1,6 +1,7 @@
 FROM fedora:35 AS builder
 
-RUN yum install -y git gcc flex bison diffutils elfutils-libelf-devel bc
+RUN yum install -y git gcc flex bison diffutils elfutils-libelf-devel bc && \
+    yum clean all
 
 WORKDIR /workspace
 

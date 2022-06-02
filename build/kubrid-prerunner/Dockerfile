@@ -1,6 +1,6 @@
 FROM golang:1.17-alpine AS builder
 
-RUN apk add gcc musl-dev
+RUN apk add --no-cache gcc musl-dev
 
 WORKDIR /workspace
 
@@ -14,7 +14,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build go build -a cmd/kubrid-preru
 
 FROM alpine
 
-RUN apk add curl screen dnsmasq cdrkit iptables
+RUN apk add --no-cache curl screen dnsmasq cdrkit iptables
 
 RUN curl -sLo /usr/bin/cloud-hypervisor https://github.com/cloud-hypervisor/cloud-hypervisor/releases/download/v24.0/cloud-hypervisor-static && chmod +x /usr/bin/cloud-hypervisor
 RUN mkdir /var/lib/cloud-hypervisor && curl -sLo /var/lib/cloud-hypervisor/hypervisor-fw https://github.com/cloud-hypervisor/rust-hypervisor-firmware/releases/download/0.4.0/hypervisor-fw
