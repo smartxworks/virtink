@@ -33,10 +33,12 @@ type VirtualMachine struct {
 
 // VirtualMachineSpec is the spec for a VirtualMachine resource
 type VirtualMachineSpec struct {
-	Resources    corev1.ResourceRequirements `json:"resources,omitempty"`
-	NodeSelector map[string]string           `json:"nodeSelector,omitempty"`
-	Affinity     *corev1.Affinity            `json:"affinity,omitempty"`
-	Tolerations  []corev1.Toleration         `json:"tolerations,omitempty"`
+	NodeSelector   map[string]string           `json:"nodeSelector,omitempty"`
+	Affinity       *corev1.Affinity            `json:"affinity,omitempty"`
+	Tolerations    []corev1.Toleration         `json:"tolerations,omitempty"`
+	Resources      corev1.ResourceRequirements `json:"resources,omitempty"`
+	LivenessProbe  *corev1.Probe               `json:"livenessProbe,omitempty"`
+	ReadinessProbe *corev1.Probe               `json:"readinessProbe,omitempty"`
 
 	RunPolicy RunPolicy `json:"runPolicy,omitempty"`
 

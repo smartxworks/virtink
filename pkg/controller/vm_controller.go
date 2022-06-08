@@ -180,9 +180,11 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *kubridv1alpha1.Virtua
 			Tolerations:   vm.Spec.Tolerations,
 			Affinity:      vm.Spec.Affinity,
 			Containers: []corev1.Container{{
-				Name:      "cloud-hypervisor",
-				Image:     r.PrerunnerImageName,
-				Resources: vm.Spec.Resources,
+				Name:           "cloud-hypervisor",
+				Image:          r.PrerunnerImageName,
+				Resources:      vm.Spec.Resources,
+				LivenessProbe:  vm.Spec.LivenessProbe,
+				ReadinessProbe: vm.Spec.ReadinessProbe,
 				SecurityContext: &corev1.SecurityContext{
 					Privileged: func() *bool { v := true; return &v }(),
 				},
