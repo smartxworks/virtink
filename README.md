@@ -8,7 +8,7 @@ Compared to [KubeVirt](https://github.com/kubevirt/kubevirt), Kubrid:
 
 - does not use libvirt or QEMU. By leveraging Cloud Hypervisor, VMs has lower memory footprints, higher performance and smaller attack surface.
 - does not require a long-running per-Pod launcher process, which further reduces runtime overheads.
-- is an especially good fit for running fully isolated Kubernetes clusters in an existing Kubernetes cluster. See our [Cluster API provider](https://github.com/smartxworks/cluster-api-provider-kubrid) and the [skink](https://github.com/smartxworks/skink) tool for more details.
+- is an especially good fit for running fully isolated Kubernetes clusters in an existing Kubernetes cluster. See our [Cluster API provider](https://github.com/smartxworks/cluster-api-provider-kubrid) and the [unkink](https://github.com/smartxworks/unkink) tool for more details.
 
 Kubrid consists of 3 components:
 
