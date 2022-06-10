@@ -36,4 +36,4 @@ kubectl apply -f https://github.com/smartxworks/kubrid/releases/download/v0.1.0/
 
 ## License
 
-This project is distributed under the [Mozilla Public License Version 2.0](LICENSE).
+This project is distributed under the [Apache License, Version 2.0](LICENSE).
