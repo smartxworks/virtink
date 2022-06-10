@@ -168,15 +168,6 @@ func setupBridgeNetwork(linkName string, cidr string, netConfig *cloudhypervisor
 		Mask: subnet.Mask,
 	}
 
-	newLinkIP, err := nextIP(bridgeIP, subnet)
-	if err != nil {
-		return fmt.Errorf("generate new link IP: %s", err)
-	}
-	newLinkIPNet := net.IPNet{
-		IP:   newLinkIP,
-		Mask: subnet.Mask,
-	}
-
 	bridgeName := fmt.Sprintf("br-%s", linkName)
 	bridge, err := createBridge(bridgeName, &bridgeIPNet)
 	if err != nil {
@@ -212,18 +203,8 @@ func setupBridgeNetwork(linkName string, cidr string, netConfig *cloudhypervisor
 		return fmt.Errorf("down link: %s", err)
 	}
 
-	for _, linkAddr := range linkAddrs {
-		if err := netlink.AddrDel(link, &linkAddr); err != nil {
-			return fmt.Errorf("delete link addr: %s", err)
-		}
-	}
-
 	if _, err := libmacouflage.SpoofMacSameVendor(linkName, false); err != nil {
 		return fmt.Errorf("spoof link MAC: %s", err)
-	}
-
-	if err := netlink.AddrAdd(link, &netlink.Addr{IPNet: &newLinkIPNet}); err != nil {
-		return fmt.Errorf("add new link addr: %s", err)
 	}
 
 	if err := netlink.LinkSetMaster(link, bridge); err != nil {
