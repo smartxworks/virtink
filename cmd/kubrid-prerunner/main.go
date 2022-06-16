@@ -207,6 +207,31 @@ func setupBridgeNetwork(linkName string, cidr string, netConfig *cloudhypervisor
 		return fmt.Errorf("spoof link MAC: %s", err)
 	}
 
+	if linkAddr != nil {
+		if err := netlink.AddrDel(link, &linkAddrs[0]); err != nil {
+			return fmt.Errorf("delete link address: %s", err)
+		}
+
+		originalLinkName := link.Attrs().Name
+		newLinkName := fmt.Sprintf("%s-nic", originalLinkName)
+
+		if err := netlink.LinkSetName(link, newLinkName); err != nil {
+			return fmt.Errorf("rename link: %s", err)
+		}
+
+		dummy := &netlink.Dummy{
+			LinkAttrs: netlink.LinkAttrs{
+				Name: originalLinkName,
+			},
+		}
+		if err := netlink.LinkAdd(dummy); err != nil {
+			return fmt.Errorf("add dummy interface: %s", err)
+		}
+		if err := netlink.AddrReplace(dummy, &linkAddrs[0]); err != nil {
+			return fmt.Errorf("replace dummy interface address: %s", err)
+		}
+	}
+
 	if err := netlink.LinkSetMaster(link, bridge); err != nil {
 		return fmt.Errorf("add link to bridge: %s", err)
 	}
