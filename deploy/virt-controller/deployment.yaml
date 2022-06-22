@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: virt-controller
+  namespace: virtink-system
+spec:
+  selector:
+    matchLabels:
+      name: virt-controller
+  template:
+    metadata:
+      labels:
+        name: virt-controller
+    spec:
+      serviceAccountName: virt-controller
+      containers:
+        - name: virt-controller
+          image: virt-controller
+          args:
+            - --zap-time-encoding=iso8601
+            - --leader-elect
+          volumeMounts:
+            - name: cert
+              mountPath: /tmp/k8s-webhook-server/serving-certs
+              readOnly: true
+      volumes:
+        - name: cert
+          secret:
+            secretName: virt-controller-cert
+            defaultMode: 0644

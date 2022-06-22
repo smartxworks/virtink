@@ -7,9 +7,9 @@ import (
 	sync "sync"
 	time "time"
 
-	versioned "github.com/smartxworks/kubrid/pkg/generated/clientset/versioned"
-	internalinterfaces "github.com/smartxworks/kubrid/pkg/generated/informers/externalversions/internalinterfaces"
-	kubrid "github.com/smartxworks/kubrid/pkg/generated/informers/externalversions/kubrid"
+	versioned "github.com/smartxworks/virtink/pkg/generated/clientset/versioned"
+	internalinterfaces "github.com/smartxworks/virtink/pkg/generated/informers/externalversions/internalinterfaces"
+	virt "github.com/smartxworks/virtink/pkg/generated/informers/externalversions/virt"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -156,9 +156,9 @@ type SharedInformerFactory interface {
 	ForResource(resource schema.GroupVersionResource) (GenericInformer, error)
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
 
-	Kubrid() kubrid.Interface
+	Virt() virt.Interface
 }
 
-func (f *sharedInformerFactory) Kubrid() kubrid.Interface {
-	return kubrid.New(f, f.namespace, f.tweakListOptions)
+func (f *sharedInformerFactory) Virt() virt.Interface {
+	return virt.New(f, f.namespace, f.tweakListOptions)
 }

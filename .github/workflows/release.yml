@@ -21,45 +21,45 @@ jobs:
 
       - uses: docker/build-push-action@v2
         with:
-          file: build/kubrid-controller/Dockerfile
-          tags: smartxworks/kubrid-controller:${{ steps.get_version.outputs.version }}
+          file: build/virt-controller/Dockerfile
+          tags: smartxworks/virt-controller:${{ steps.get_version.outputs.version }}
           push: true
 
       - uses: docker/build-push-action@v2
         with:
-          file: build/kubrid-daemon/Dockerfile
-          tags: smartxworks/kubrid-daemon:${{ steps.get_version.outputs.version }}
+          file: build/virt-daemon/Dockerfile
+          tags: smartxworks/virt-daemon:${{ steps.get_version.outputs.version }}
           push: true
 
       - uses: docker/build-push-action@v2
         with:
-          file: build/kubrid-prerunner/Dockerfile
-          tags: smartxworks/kubrid-prerunner:${{ steps.get_version.outputs.version }}
+          file: build/virt-prerunner/Dockerfile
+          tags: smartxworks/virt-prerunner:${{ steps.get_version.outputs.version }}
           push: true
 
       - uses: docker/build-push-action@v2
         with:
-          file: build/container-disk-base/Dockerfile
-          tags: smartxworks/kubrid-container-disk-base
+          file: build/virtink-container-disk-base/Dockerfile
+          tags: smartxworks/virtink-container-disk-base
           push: true
 
       - uses: docker/build-push-action@v2
         with:
-          file: build/kernel-base/Dockerfile
-          tags: smartxworks/kubrid-kernel-base
+          file: build/virtink-kernel-base/Dockerfile
+          tags: smartxworks/virtink-kernel-base
           push: true
 
       - uses: docker/build-push-action@v2
         with:
-          file: build/container-rootfs-base/Dockerfile
-          tags: smartxworks/kubrid-container-rootfs-base
+          file: build/virtink-container-rootfs-base/Dockerfile
+          tags: smartxworks/virtink-container-rootfs-base
           push: true
 
       - run: |
           curl -sLo /tmp/skaffold https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-amd64
           chmod +x /tmp/skaffold
-          /tmp/skaffold render --default-repo=smartxworks --offline=true > kubrid.yaml
+          /tmp/skaffold render --default-repo=smartxworks --offline=true > virtink.yaml
 
       - uses: softprops/action-gh-release@v1
         with:
-          files: kubrid.yaml
+          files: virtink.yaml

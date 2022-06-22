@@ -4,7 +4,7 @@ RUN apt-get update -y && \
     apt-get install -y --no-install-recommends systemd-sysv udev lsb-release cloud-init sudo && \
     rm -rf /var/lib/apt/lists/*
 
-FROM smartxworks/kubrid-container-rootfs-base
+FROM smartxworks/virtink-container-rootfs-base
 
 COPY --from=rootfs / /rootfs
 RUN ln -sf ../run/systemd/resolve/stub-resolv.conf /rootfs/etc/resolv.conf

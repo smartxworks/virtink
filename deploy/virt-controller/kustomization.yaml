@@ -1,0 +1,26 @@
+resources:
+  - deployment.yaml
+  - rolebinding.yaml
+  - role.yaml
+  - sa.yaml
+  - manifests.yaml
+  - service.yaml
+  - cert.yaml
+  - cert-issuer.yaml
+
+patchesStrategicMerge:
+  - manifests-patch.yaml
+
+patchesJson6902:
+  - target:
+      name: mutating-webhook-configuration
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: virtink-mutating-webhook-configuration
+  - target:
+      name: validating-webhook-configuration
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: virtink-validating-webhook-configuration

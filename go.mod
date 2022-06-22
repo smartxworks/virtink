@@ -1,4 +1,4 @@
-module github.com/smartxworks/kubrid
+module github.com/smartxworks/virtink
 
 go 1.17
 

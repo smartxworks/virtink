@@ -13,10 +13,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	kubridv1alpha1 "github.com/smartxworks/kubrid/pkg/apis/kubrid/v1alpha1"
+	virtv1alpha1 "github.com/smartxworks/virtink/pkg/apis/virt/v1alpha1"
 )
 
-// +kubebuilder:webhook:path=/mutate-v1alpha1-virtualmachine,mutating=true,failurePolicy=fail,sideEffects=None,groups=kubrid.smartx.com,resources=virtualmachines,verbs=create;update,versions=v1alpha1,name=mutate.virtualmachine.v1alpha1.kubrid.smartx.com,admissionReviewVersions={v1,v1beta1}
+// +kubebuilder:webhook:path=/mutate-v1alpha1-virtualmachine,mutating=true,failurePolicy=fail,sideEffects=None,groups=virt.virtink.smartx.com,resources=virtualmachines,verbs=create;update,versions=v1alpha1,name=mutate.virtualmachine.v1alpha1.virt.virtink.smartx.com,admissionReviewVersions={v1,v1beta1}
 
 type VMMutator struct {
 	decoder *admission.Decoder
@@ -31,7 +31,7 @@ func (h *VMMutator) InjectDecoder(decode *admission.Decoder) error {
 }
 
 func (h *VMMutator) Handle(ctx context.Context, req admission.Request) admission.Response {
-	var vm kubridv1alpha1.VirtualMachine
+	var vm virtv1alpha1.VirtualMachine
 	if err := h.decoder.Decode(req, &vm); err != nil {
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("unmarshal VM: %s", err))
 	}
@@ -41,7 +41,7 @@ func (h *VMMutator) Handle(ctx context.Context, req admission.Request) admission
 	case admissionv1.Create:
 		err = MutateVM(ctx, &vm, nil)
 	case admissionv1.Update:
-		var oldVM kubridv1alpha1.VirtualMachine
+		var oldVM virtv1alpha1.VirtualMachine
 		if err := h.decoder.DecodeRaw(req.OldObject, &oldVM); err != nil {
 			return admission.Errored(http.StatusBadRequest, fmt.Errorf("unmarshal old VM: %s", err))
 		}
@@ -61,9 +61,9 @@ func (h *VMMutator) Handle(ctx context.Context, req admission.Request) admission
 	return admission.PatchResponseFromRaw(req.Object.Raw, vmJSON)
 }
 
-func MutateVM(ctx context.Context, vm *kubridv1alpha1.VirtualMachine, oldVM *kubridv1alpha1.VirtualMachine) error {
+func MutateVM(ctx context.Context, vm *virtv1alpha1.VirtualMachine, oldVM *virtv1alpha1.VirtualMachine) error {
 	if vm.Spec.RunPolicy == "" {
-		vm.Spec.RunPolicy = kubridv1alpha1.RunPolicyOnce
+		vm.Spec.RunPolicy = virtv1alpha1.RunPolicyOnce
 	}
 
 	if vm.Spec.Instance.CPU.Sockets == 0 {
@@ -79,7 +79,7 @@ func MutateVM(ctx context.Context, vm *kubridv1alpha1.VirtualMachine, oldVM *kub
 	return nil
 }
 
-// +kubebuilder:webhook:path=/validate-v1alpha1-virtualmachine,mutating=false,failurePolicy=fail,sideEffects=None,groups=kubrid.smartx.com,resources=virtualmachines,verbs=create;update,versions=v1alpha1,name=validate.virtualmachine.v1alpha1.kubrid.smartx.com,admissionReviewVersions={v1,v1beta1}
+// +kubebuilder:webhook:path=/validate-v1alpha1-virtualmachine,mutating=false,failurePolicy=fail,sideEffects=None,groups=virt.virtink.smartx.com,resources=virtualmachines,verbs=create;update,versions=v1alpha1,name=validate.virtualmachine.v1alpha1.virt.virtink.smartx.com,admissionReviewVersions={v1,v1beta1}
 
 type VMValidator struct {
 	decoder *admission.Decoder
@@ -94,7 +94,7 @@ func (h *VMValidator) InjectDecoder(decoder *admission.Decoder) error {
 }
 
 func (h *VMValidator) Handle(ctx context.Context, req admission.Request) admission.Response {
-	var vm kubridv1alpha1.VirtualMachine
+	var vm virtv1alpha1.VirtualMachine
 	if err := h.decoder.Decode(req, &vm); err != nil {
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("unmarshal VM: %s", err))
 	}
@@ -104,7 +104,7 @@ func (h *VMValidator) Handle(ctx context.Context, req admission.Request) admissi
 	case admissionv1.Create:
 		errs = ValidateVM(ctx, &vm, nil)
 	case admissionv1.Update:
-		var oldVM kubridv1alpha1.VirtualMachine
+		var oldVM virtv1alpha1.VirtualMachine
 		if err := h.decoder.DecodeRaw(req.OldObject, &oldVM); err != nil {
 			return admission.Errored(http.StatusBadRequest, fmt.Errorf("unmarshal old VM: %s", err))
 		}
@@ -130,13 +130,13 @@ func (h *VMValidator) Handle(ctx context.Context, req admission.Request) admissi
 	return admission.Allowed("")
 }
 
-func ValidateVM(ctx context.Context, vm *kubridv1alpha1.VirtualMachine, oldVM *kubridv1alpha1.VirtualMachine) field.ErrorList {
+func ValidateVM(ctx context.Context, vm *virtv1alpha1.VirtualMachine, oldVM *virtv1alpha1.VirtualMachine) field.ErrorList {
 	var errs field.ErrorList
 	errs = append(errs, ValidateVMSpec(ctx, &vm.Spec, field.NewPath("spec"))...)
 	return errs
 }
 
-func ValidateVMSpec(ctx context.Context, spec *kubridv1alpha1.VirtualMachineSpec, fieldPath *field.Path) field.ErrorList {
+func ValidateVMSpec(ctx context.Context, spec *virtv1alpha1.VirtualMachineSpec, fieldPath *field.Path) field.ErrorList {
 	var errs field.ErrorList
 	if spec == nil {
 		errs = append(errs, field.Required(fieldPath, ""))
@@ -168,7 +168,7 @@ func ValidateVMSpec(ctx context.Context, spec *kubridv1alpha1.VirtualMachineSpec
 	return errs
 }
 
-func ValidateInstance(ctx context.Context, instance *kubridv1alpha1.Instance, fieldPath *field.Path) field.ErrorList {
+func ValidateInstance(ctx context.Context, instance *virtv1alpha1.Instance, fieldPath *field.Path) field.ErrorList {
 	var errs field.ErrorList
 	if instance == nil {
 		errs = append(errs, field.Required(fieldPath, ""))
@@ -205,7 +205,7 @@ func ValidateInstance(ctx context.Context, instance *kubridv1alpha1.Instance, fi
 	return errs
 }
 
-func ValidateCPU(ctx context.Context, cpu *kubridv1alpha1.CPU, fieldPath *field.Path) field.ErrorList {
+func ValidateCPU(ctx context.Context, cpu *virtv1alpha1.CPU, fieldPath *field.Path) field.ErrorList {
 	var errs field.ErrorList
 	if cpu == nil {
 		errs = append(errs, field.Required(fieldPath, ""))
@@ -221,7 +221,7 @@ func ValidateCPU(ctx context.Context, cpu *kubridv1alpha1.CPU, fieldPath *field.
 	return errs
 }
 
-func ValidateMemory(ctx context.Context, memory *kubridv1alpha1.Memory, fieldPath *field.Path) field.ErrorList {
+func ValidateMemory(ctx context.Context, memory *virtv1alpha1.Memory, fieldPath *field.Path) field.ErrorList {
 	var errs field.ErrorList
 	if memory == nil {
 		errs = append(errs, field.Required(fieldPath, ""))
@@ -234,7 +234,7 @@ func ValidateMemory(ctx context.Context, memory *kubridv1alpha1.Memory, fieldPat
 	return errs
 }
 
-func ValidateKernel(ctx context.Context, kernel *kubridv1alpha1.Kernel, fieldPath *field.Path) field.ErrorList {
+func ValidateKernel(ctx context.Context, kernel *virtv1alpha1.Kernel, fieldPath *field.Path) field.ErrorList {
 	var errs field.ErrorList
 	if kernel == nil {
 		errs = append(errs, field.Required(fieldPath, ""))
@@ -250,7 +250,7 @@ func ValidateKernel(ctx context.Context, kernel *kubridv1alpha1.Kernel, fieldPat
 	return errs
 }
 
-func ValidateDisk(ctx context.Context, disk *kubridv1alpha1.Disk, fieldPath *field.Path) field.ErrorList {
+func ValidateDisk(ctx context.Context, disk *virtv1alpha1.Disk, fieldPath *field.Path) field.ErrorList {
 	var errs field.ErrorList
 	if disk == nil {
 		errs = append(errs, field.Required(fieldPath, ""))
@@ -263,7 +263,7 @@ func ValidateDisk(ctx context.Context, disk *kubridv1alpha1.Disk, fieldPath *fie
 	return errs
 }
 
-func ValidateInterface(ctx context.Context, iface *kubridv1alpha1.Interface, fieldPath *field.Path) field.ErrorList {
+func ValidateInterface(ctx context.Context, iface *virtv1alpha1.Interface, fieldPath *field.Path) field.ErrorList {
 	var errs field.ErrorList
 	if iface == nil {
 		errs = append(errs, field.Required(fieldPath, ""))
@@ -297,7 +297,7 @@ func ValidateCIDR(cidr string, capacity int, fieldPath *field.Path) field.ErrorL
 	return errs
 }
 
-func ValidateVolume(ctx context.Context, volume *kubridv1alpha1.Volume, fieldPath *field.Path) field.ErrorList {
+func ValidateVolume(ctx context.Context, volume *virtv1alpha1.Volume, fieldPath *field.Path) field.ErrorList {
 	var errs field.ErrorList
 	if volume == nil {
 		errs = append(errs, field.Required(fieldPath, ""))
@@ -311,7 +311,7 @@ func ValidateVolume(ctx context.Context, volume *kubridv1alpha1.Volume, fieldPat
 	return errs
 }
 
-func ValidateVolumeSource(ctx context.Context, source *kubridv1alpha1.VolumeSource, fieldPath *field.Path) field.ErrorList {
+func ValidateVolumeSource(ctx context.Context, source *virtv1alpha1.VolumeSource, fieldPath *field.Path) field.ErrorList {
 	var errs field.ErrorList
 	if source == nil {
 		errs = append(errs, field.Required(fieldPath, ""))
@@ -349,7 +349,7 @@ func ValidateVolumeSource(ctx context.Context, source *kubridv1alpha1.VolumeSour
 	return errs
 }
 
-func ValidateContainerDiskVolumeSource(ctx context.Context, source *kubridv1alpha1.ContainerDiskVolumeSource, fieldPath *field.Path) field.ErrorList {
+func ValidateContainerDiskVolumeSource(ctx context.Context, source *virtv1alpha1.ContainerDiskVolumeSource, fieldPath *field.Path) field.ErrorList {
 	var errs field.ErrorList
 	if source == nil {
 		errs = append(errs, field.Required(fieldPath, ""))
@@ -362,7 +362,7 @@ func ValidateContainerDiskVolumeSource(ctx context.Context, source *kubridv1alph
 	return errs
 }
 
-func ValidateCloudInitVolumeSource(ctx context.Context, source *kubridv1alpha1.CloudInitVolumeSource, fieldPath *field.Path) field.ErrorList {
+func ValidateCloudInitVolumeSource(ctx context.Context, source *virtv1alpha1.CloudInitVolumeSource, fieldPath *field.Path) field.ErrorList {
 	var errs field.ErrorList
 	if source == nil {
 		errs = append(errs, field.Required(fieldPath, ""))
@@ -411,7 +411,7 @@ func ValidateCloudInitVolumeSource(ctx context.Context, source *kubridv1alpha1.C
 	return errs
 }
 
-func ValidateContainerRootfsVolumeSource(ctx context.Context, source *kubridv1alpha1.ContainerRootfsVolumeSource, fieldPath *field.Path) field.ErrorList {
+func ValidateContainerRootfsVolumeSource(ctx context.Context, source *virtv1alpha1.ContainerRootfsVolumeSource, fieldPath *field.Path) field.ErrorList {
 	var errs field.ErrorList
 	if source == nil {
 		errs = append(errs, field.Required(fieldPath, ""))
@@ -427,7 +427,7 @@ func ValidateContainerRootfsVolumeSource(ctx context.Context, source *kubridv1al
 	return errs
 }
 
-func ValidateNetwork(ctx context.Context, network *kubridv1alpha1.Network, fieldPath *field.Path) field.ErrorList {
+func ValidateNetwork(ctx context.Context, network *virtv1alpha1.Network, fieldPath *field.Path) field.ErrorList {
 	var errs field.ErrorList
 	if network == nil {
 		errs = append(errs, field.Required(fieldPath, ""))
@@ -441,7 +441,7 @@ func ValidateNetwork(ctx context.Context, network *kubridv1alpha1.Network, field
 	return errs
 }
 
-func ValidateNetworkSource(ctx context.Context, source *kubridv1alpha1.NetworkSource, fieldPath *field.Path) field.ErrorList {
+func ValidateNetworkSource(ctx context.Context, source *virtv1alpha1.NetworkSource, fieldPath *field.Path) field.ErrorList {
 	var errs field.ErrorList
 	if source == nil {
 		errs = append(errs, field.Required(fieldPath, ""))
@@ -471,7 +471,7 @@ func ValidateNetworkSource(ctx context.Context, source *kubridv1alpha1.NetworkSo
 	return errs
 }
 
-func ValidatePodNetworkSource(ctx context.Context, source *kubridv1alpha1.PodNetworkSource, fieldPath *field.Path) field.ErrorList {
+func ValidatePodNetworkSource(ctx context.Context, source *virtv1alpha1.PodNetworkSource, fieldPath *field.Path) field.ErrorList {
 	var errs field.ErrorList
 	if source == nil {
 		errs = append(errs, field.Required(fieldPath, ""))
@@ -480,7 +480,7 @@ func ValidatePodNetworkSource(ctx context.Context, source *kubridv1alpha1.PodNet
 	return errs
 }
 
-func ValidateMultusNetworkSource(ctx context.Context, source *kubridv1alpha1.MultusNetworkSource, fieldPath *field.Path) field.ErrorList {
+func ValidateMultusNetworkSource(ctx context.Context, source *virtv1alpha1.MultusNetworkSource, fieldPath *field.Path) field.ErrorList {
 	var errs field.ErrorList
 	if source == nil {
 		errs = append(errs, field.Required(fieldPath, ""))
