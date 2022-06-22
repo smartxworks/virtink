@@ -3,9 +3,9 @@
 package fake
 
 import (
-	clientset "github.com/smartxworks/kubrid/pkg/generated/clientset/versioned"
-	kubridv1alpha1 "github.com/smartxworks/kubrid/pkg/generated/clientset/versioned/typed/kubrid/v1alpha1"
-	fakekubridv1alpha1 "github.com/smartxworks/kubrid/pkg/generated/clientset/versioned/typed/kubrid/v1alpha1/fake"
+	clientset "github.com/smartxworks/virtink/pkg/generated/clientset/versioned"
+	virtv1alpha1 "github.com/smartxworks/virtink/pkg/generated/clientset/versioned/typed/virt/v1alpha1"
+	fakevirtv1alpha1 "github.com/smartxworks/virtink/pkg/generated/clientset/versioned/typed/virt/v1alpha1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -63,7 +63,7 @@ var (
 	_ testing.FakeClient  = &Clientset{}
 )
 
-// KubridV1alpha1 retrieves the KubridV1alpha1Client
-func (c *Clientset) KubridV1alpha1() kubridv1alpha1.KubridV1alpha1Interface {
-	return &fakekubridv1alpha1.FakeKubridV1alpha1{Fake: &c.Fake}
+// VirtV1alpha1 retrieves the VirtV1alpha1Client
+func (c *Clientset) VirtV1alpha1() virtv1alpha1.VirtV1alpha1Interface {
+	return &fakevirtv1alpha1.FakeVirtV1alpha1{Fake: &c.Fake}
 }

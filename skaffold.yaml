@@ -1,23 +1,23 @@
 apiVersion: skaffold/v2beta28
 kind: Config
 metadata:
-  name: kubrid
+  name: virtink
 build:
   local:
     useBuildkit: true
   artifacts:
-    - image: kubrid-controller
+    - image: virt-controller
       docker:
-        dockerfile: build/kubrid-controller/Dockerfile
+        dockerfile: build/virt-controller/Dockerfile
       requires:
-        - image: kubrid-prerunner
+        - image: virt-prerunner
           alias: PRERUNNER_IMAGE
-    - image: kubrid-daemon
+    - image: virt-daemon
       docker:
-        dockerfile: build/kubrid-daemon/Dockerfile
-    - image: kubrid-prerunner
+        dockerfile: build/virt-daemon/Dockerfile
+    - image: virt-prerunner
       docker:
-        dockerfile: build/kubrid-prerunner/Dockerfile
+        dockerfile: build/virt-prerunner/Dockerfile
 deploy:
   kustomize:
     paths:

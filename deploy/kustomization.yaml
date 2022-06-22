@@ -1,5 +1,5 @@
 resources:
-  - crd/kubrid.smartx.com_virtualmachines.yaml
+  - crd/virt.virtink.smartx.com_virtualmachines.yaml
   - namespace.yaml
-  - kubrid-controller
-  - kubrid-daemon
+  - virt-controller
+  - virt-daemon

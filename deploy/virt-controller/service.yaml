@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: virt-controller
+  namespace: virtink-system
+spec:
+  selector:
+    name: virt-controller
+  ports:
+    - port: 443
+      targetPort: 9443

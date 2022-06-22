@@ -1,4 +1,4 @@
-apiVersion: kubrid.smartx.com/v1alpha1
+apiVersion: virt.virtink.smartx.com/v1alpha1
 kind: VirtualMachine
 metadata:
   name: ubuntu-container-rootfs
@@ -7,7 +7,7 @@ spec:
     memory:
       size: 1Gi
     kernel:
-      image: smartxworks/kubrid-kernel-5.15.12
+      image: harbor.smartx.com/fengye87/virtink-kernel-5.15.12
       cmdline: "console=ttyS0 root=/dev/vda rw"
     disks:
       - name: ubuntu
@@ -17,7 +17,7 @@ spec:
   volumes:
     - name: ubuntu
       containerRootfs:
-        image: smartxworks/kubrid-container-rootfs-ubuntu
+        image: harbor.smartx.com/fengye87/virtink-container-rootfs-ubuntu
         size: 4Gi
     - name: cloud-init
       cloudInit:

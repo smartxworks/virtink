@@ -20,7 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	kubridv1alpha1 "github.com/smartxworks/kubrid/pkg/apis/kubrid/v1alpha1"
+	virtv1alpha1 "github.com/smartxworks/virtink/pkg/apis/virt/v1alpha1"
 )
 
 type VMReconciler struct {
@@ -31,14 +31,14 @@ type VMReconciler struct {
 	PrerunnerImageName string
 }
 
-// +kubebuilder:rbac:groups=kubrid.smartx.com,resources=virtualmachines,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=kubrid.smartx.com,resources=virtualmachines/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=kubrid.smartx.com,resources=virtualmachines/finalizers,verbs=update
+// +kubebuilder:rbac:groups=virt.virtink.smartx.com,resources=virtualmachines,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=virt.virtink.smartx.com,resources=virtualmachines/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=virt.virtink.smartx.com,resources=virtualmachines/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;update;patch
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;update;patch;delete
 
 func (r *VMReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	var vm kubridv1alpha1.VirtualMachine
+	var vm virtv1alpha1.VirtualMachine
 	if err := r.Get(ctx, req.NamespacedName, &vm); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -62,16 +62,16 @@ func (r *VMReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Re
 	return ctrl.Result{}, nil
 }
 
-func (r *VMReconciler) reconcile(ctx context.Context, vm *kubridv1alpha1.VirtualMachine) error {
+func (r *VMReconciler) reconcile(ctx context.Context, vm *virtv1alpha1.VirtualMachine) error {
 	if vm.DeletionTimestamp != nil && !vm.DeletionTimestamp.IsZero() {
 		return nil
 	}
 
 	switch vm.Status.Phase {
-	case kubridv1alpha1.VirtualMachinePending:
+	case virtv1alpha1.VirtualMachinePending:
 		vm.Status.VMPodName = names.SimpleNameGenerator.GenerateName(fmt.Sprintf("vm-%s-", vm.Name))
-		vm.Status.Phase = kubridv1alpha1.VirtualMachineScheduling
-	case kubridv1alpha1.VirtualMachineScheduling, kubridv1alpha1.VirtualMachineScheduled, kubridv1alpha1.VirtualMachineRunning:
+		vm.Status.Phase = virtv1alpha1.VirtualMachineScheduling
+	case virtv1alpha1.VirtualMachineScheduling, virtv1alpha1.VirtualMachineScheduled, virtv1alpha1.VirtualMachineRunning:
 		var vmPod corev1.Pod
 		vmPodKey := types.NamespacedName{
 			Name:      vm.Status.VMPodName,
@@ -91,7 +91,7 @@ func (r *VMReconciler) reconcile(ctx context.Context, vm *kubridv1alpha1.Virtual
 		}
 
 		if vmPodNotFound {
-			if vm.Status.Phase == kubridv1alpha1.VirtualMachineScheduling {
+			if vm.Status.Phase == virtv1alpha1.VirtualMachineScheduling {
 				vmPod, err := r.buildVMPod(ctx, vm)
 				if err != nil {
 					return fmt.Errorf("build VM Pod: %s", err)
@@ -107,46 +107,46 @@ func (r *VMReconciler) reconcile(ctx context.Context, vm *kubridv1alpha1.Virtual
 				}
 				r.Recorder.Eventf(vm, corev1.EventTypeNormal, "CreatedVMPod", "Created VM Pod %q", vmPod.Name)
 			} else {
-				vm.Status.Phase = kubridv1alpha1.VirtualMachineFailed
+				vm.Status.Phase = virtv1alpha1.VirtualMachineFailed
 			}
 		} else {
 			switch vmPod.Status.Phase {
 			case corev1.PodRunning:
-				if vm.Status.Phase == kubridv1alpha1.VirtualMachineScheduling {
+				if vm.Status.Phase == virtv1alpha1.VirtualMachineScheduling {
 					vm.Status.VMPodUID = vmPod.UID
 					vm.Status.NodeName = vmPod.Spec.NodeName
-					vm.Status.Phase = kubridv1alpha1.VirtualMachineScheduled
+					vm.Status.Phase = virtv1alpha1.VirtualMachineScheduled
 				}
 			case corev1.PodSucceeded:
-				vm.Status.Phase = kubridv1alpha1.VirtualMachineSucceeded
+				vm.Status.Phase = virtv1alpha1.VirtualMachineSucceeded
 			case corev1.PodFailed:
-				vm.Status.Phase = kubridv1alpha1.VirtualMachineFailed
+				vm.Status.Phase = virtv1alpha1.VirtualMachineFailed
 			case corev1.PodUnknown:
-				vm.Status.Phase = kubridv1alpha1.VirtualMachineUnknown
+				vm.Status.Phase = virtv1alpha1.VirtualMachineUnknown
 			default:
 				// ignored
 			}
 		}
-	case "", kubridv1alpha1.VirtualMachineSucceeded, kubridv1alpha1.VirtualMachineFailed:
+	case "", virtv1alpha1.VirtualMachineSucceeded, virtv1alpha1.VirtualMachineFailed:
 		run := false
 		switch vm.Spec.RunPolicy {
-		case kubridv1alpha1.RunPolicyAlways:
+		case virtv1alpha1.RunPolicyAlways:
 			run = true
-		case kubridv1alpha1.RunPolicyRerunOnFailure:
-			run = vm.Status.Phase == kubridv1alpha1.VirtualMachineFailed || vm.Status.Phase == "" || vm.Status.PowerAction == kubridv1alpha1.VirtualMachinePowerOn
-		case kubridv1alpha1.RunPolicyOnce:
-			run = vm.Status.Phase == "" || vm.Status.PowerAction == kubridv1alpha1.VirtualMachinePowerOn
-		case kubridv1alpha1.RunPolicyManual:
-			run = vm.Status.PowerAction == kubridv1alpha1.VirtualMachinePowerOn
+		case virtv1alpha1.RunPolicyRerunOnFailure:
+			run = vm.Status.Phase == virtv1alpha1.VirtualMachineFailed || vm.Status.Phase == "" || vm.Status.PowerAction == virtv1alpha1.VirtualMachinePowerOn
+		case virtv1alpha1.RunPolicyOnce:
+			run = vm.Status.Phase == "" || vm.Status.PowerAction == virtv1alpha1.VirtualMachinePowerOn
+		case virtv1alpha1.RunPolicyManual:
+			run = vm.Status.PowerAction == virtv1alpha1.VirtualMachinePowerOn
 		default:
 			// ignored
 		}
 
 		if run {
-			vm.Status.Phase = kubridv1alpha1.VirtualMachinePending
+			vm.Status.Phase = virtv1alpha1.VirtualMachinePending
 		}
 
-		vm.Status = kubridv1alpha1.VirtualMachineStatus{
+		vm.Status = virtv1alpha1.VirtualMachineStatus{
 			Phase: vm.Status.Phase,
 		}
 	default:
@@ -155,7 +155,7 @@ func (r *VMReconciler) reconcile(ctx context.Context, vm *kubridv1alpha1.Virtual
 	return nil
 }
 
-func (r *VMReconciler) buildVMPod(ctx context.Context, vm *kubridv1alpha1.VirtualMachine) (*corev1.Pod, error) {
+func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualMachine) (*corev1.Pod, error) {
 	vmJSON, err := json.Marshal(vm)
 	if err != nil {
 		return nil, fmt.Errorf("marshal VM: %s", err)
@@ -182,12 +182,12 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *kubridv1alpha1.Virtua
 				},
 				Args: []string{base64.StdEncoding.EncodeToString(vmJSON)},
 				VolumeMounts: []corev1.VolumeMount{{
-					Name:      "kubrid",
-					MountPath: "/var/run/kubrid",
+					Name:      "virtink",
+					MountPath: "/var/run/virtink",
 				}},
 			}},
 			Volumes: []corev1.Volume{{
-				Name: "kubrid",
+				Name: "virtink",
 				VolumeSource: corev1.VolumeSource{
 					EmptyDir: &corev1.EmptyDirVolumeSource{},
 				},
@@ -197,15 +197,15 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *kubridv1alpha1.Virtua
 
 	if vm.Spec.Instance.Kernel != nil {
 		vmPod.Spec.Volumes = append(vmPod.Spec.Volumes, corev1.Volume{
-			Name: "kubrid-kernel",
+			Name: "virtink-kernel",
 			VolumeSource: corev1.VolumeSource{
 				EmptyDir: &corev1.EmptyDirVolumeSource{},
 			},
 		})
 
 		volumeMount := corev1.VolumeMount{
-			Name:      "kubrid-kernel",
-			MountPath: "/mnt/kubrid-kernel",
+			Name:      "virtink-kernel",
+			MountPath: "/mnt/virtink-kernel",
 		}
 		vmPod.Spec.Containers[0].VolumeMounts = append(vmPod.Spec.Containers[0].VolumeMounts, volumeMount)
 
@@ -245,7 +245,7 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *kubridv1alpha1.Virtua
 			initContainer := corev1.Container{
 				Name:    "init-volume-" + volume.Name,
 				Image:   vmPod.Spec.Containers[0].Image,
-				Command: []string{"kubrid-init-volume"},
+				Command: []string{"virt-init-volume"},
 				Args:    []string{"cloud-init"},
 			}
 
@@ -260,7 +260,7 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *kubridv1alpha1.Virtua
 				userData = volume.CloudInit.UserDataBase64
 			case volume.CloudInit.UserDataSecretName != "":
 				vmPod.Spec.Volumes = append(vmPod.Spec.Volumes, corev1.Volume{
-					Name: "kubrid-cloud-init-user-data",
+					Name: "virtink-cloud-init-user-data",
 					VolumeSource: corev1.VolumeSource{
 						Secret: &corev1.SecretVolumeSource{
 							SecretName: volume.CloudInit.UserDataSecretName,
@@ -268,10 +268,10 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *kubridv1alpha1.Virtua
 					},
 				})
 				initContainer.VolumeMounts = append(initContainer.VolumeMounts, corev1.VolumeMount{
-					Name:      "kubrid-cloud-init-user-data",
-					MountPath: "/mnt/kubrid-cloud-init-user-data",
+					Name:      "virtink-cloud-init-user-data",
+					MountPath: "/mnt/virtink-cloud-init-user-data",
 				})
-				userData = "/mnt/kubrid-cloud-init-user-data/value"
+				userData = "/mnt/virtink-cloud-init-user-data/value"
 			default:
 				// ignored
 			}
@@ -285,7 +285,7 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *kubridv1alpha1.Virtua
 				networkData = volume.CloudInit.NetworkDataBase64
 			case volume.CloudInit.NetworkDataSecretName != "":
 				vmPod.Spec.Volumes = append(vmPod.Spec.Volumes, corev1.Volume{
-					Name: "kubrid-cloud-init-network-data",
+					Name: "virtink-cloud-init-network-data",
 					VolumeSource: corev1.VolumeSource{
 						Secret: &corev1.SecretVolumeSource{
 							SecretName: volume.CloudInit.NetworkDataSecretName,
@@ -293,10 +293,10 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *kubridv1alpha1.Virtua
 					},
 				})
 				vmPod.Spec.Containers[0].VolumeMounts = append(vmPod.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
-					Name:      "kubrid-cloud-init-network-data",
-					MountPath: "/mnt/kubrid-cloud-init-network-data",
+					Name:      "virtink-cloud-init-network-data",
+					MountPath: "/mnt/virtink-cloud-init-network-data",
 				})
-				networkData = "/mnt/kubrid-cloud-init-network-data/value"
+				networkData = "/mnt/virtink-cloud-init-network-data/value"
 			default:
 				// ignored
 			}
@@ -369,7 +369,7 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *kubridv1alpha1.Virtua
 
 func (r *VMReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&kubridv1alpha1.VirtualMachine{}).
+		For(&virtv1alpha1.VirtualMachine{}).
 		Owns(&corev1.Pod{}).
 		Complete(r)
 }

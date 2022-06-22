@@ -1,3 +1,3 @@
-FROM smartxworks/kubrid-container-disk-base
+FROM smartxworks/virtink-container-disk-base
 
 ADD https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img /disk

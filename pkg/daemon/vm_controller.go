@@ -13,8 +13,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	kubridv1alpha1 "github.com/smartxworks/kubrid/pkg/apis/kubrid/v1alpha1"
-	"github.com/smartxworks/kubrid/pkg/cloudhypervisor"
+	virtv1alpha1 "github.com/smartxworks/virtink/pkg/apis/virt/v1alpha1"
+	"github.com/smartxworks/virtink/pkg/cloudhypervisor"
 )
 
 type VMReconciler struct {
@@ -25,14 +25,14 @@ type VMReconciler struct {
 	NodeName string
 }
 
-// +kubebuilder:rbac:groups=kubrid.smartx.com,resources=virtualmachines,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=kubrid.smartx.com,resources=virtualmachines/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=kubrid.smartx.com,resources=virtualmachines/finalizers,verbs=update
+// +kubebuilder:rbac:groups=virt.virtink.smartx.com,resources=virtualmachines,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=virt.virtink.smartx.com,resources=virtualmachines/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=virt.virtink.smartx.com,resources=virtualmachines/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;update;patch
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
 
 func (r *VMReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	var vm kubridv1alpha1.VirtualMachine
+	var vm virtv1alpha1.VirtualMachine
 	if err := r.Get(ctx, req.NamespacedName, &vm); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -54,7 +54,7 @@ func (r *VMReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Re
 	return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
 }
 
-func (r *VMReconciler) reconcile(ctx context.Context, vm *kubridv1alpha1.VirtualMachine) error {
+func (r *VMReconciler) reconcile(ctx context.Context, vm *virtv1alpha1.VirtualMachine) error {
 	if vm.Status.NodeName == "" || vm.Status.NodeName != r.NodeName {
 		return nil
 	}
@@ -64,7 +64,7 @@ func (r *VMReconciler) reconcile(ctx context.Context, vm *kubridv1alpha1.Virtual
 	}
 
 	switch vm.Status.Phase {
-	case kubridv1alpha1.VirtualMachineScheduled:
+	case virtv1alpha1.VirtualMachineScheduled:
 		vmInfo, err := r.getCloudHypervisorClient(vm).VmInfo(ctx)
 		if err != nil {
 			// TODO: ignore VM not found error
@@ -72,10 +72,10 @@ func (r *VMReconciler) reconcile(ctx context.Context, vm *kubridv1alpha1.Virtual
 		}
 
 		if vmInfo.State == "Running" || vmInfo.State == "Paused" {
-			vm.Status.Phase = kubridv1alpha1.VirtualMachineRunning
+			vm.Status.Phase = virtv1alpha1.VirtualMachineRunning
 		}
-	case kubridv1alpha1.VirtualMachineRunning:
-		if vm.Spec.RunPolicy == kubridv1alpha1.RunPolicyHalted {
+	case virtv1alpha1.VirtualMachineRunning:
+		if vm.Spec.RunPolicy == virtv1alpha1.RunPolicyHalted {
 			// TODO: shutdown with graceful timeout
 			if err := r.getCloudHypervisorClient(vm).VmShutdown(ctx); err != nil {
 				r.Recorder.Eventf(vm, corev1.EventTypeWarning, "FailedPowerOff", "Failed to powered off VM")
@@ -83,38 +83,38 @@ func (r *VMReconciler) reconcile(ctx context.Context, vm *kubridv1alpha1.Virtual
 			}
 		} else {
 			switch vm.Status.PowerAction {
-			case kubridv1alpha1.VirtualMachinePowerOff:
+			case virtv1alpha1.VirtualMachinePowerOff:
 				if err := r.getCloudHypervisorClient(vm).VmShutdown(ctx); err != nil {
 					r.Recorder.Eventf(vm, corev1.EventTypeWarning, "FailedPowerOff", "Failed to powered off VM")
 				} else {
 					r.Recorder.Eventf(vm, corev1.EventTypeNormal, "PoweredOff", "Powered off VM")
 				}
-			case kubridv1alpha1.VirtualMachineShutdown:
+			case virtv1alpha1.VirtualMachineShutdown:
 				if err := r.getCloudHypervisorClient(vm).VmPowerButton(ctx); err != nil {
 					r.Recorder.Eventf(vm, corev1.EventTypeWarning, "FailedShutdown", "Failed to shutdown VM")
 				} else {
 					r.Recorder.Eventf(vm, corev1.EventTypeNormal, "Shutdown", "Shutdown VM")
 				}
-			case kubridv1alpha1.VirtualMachineReset:
+			case virtv1alpha1.VirtualMachineReset:
 				if err := r.getCloudHypervisorClient(vm).VmReboot(ctx); err != nil {
 					r.Recorder.Eventf(vm, corev1.EventTypeWarning, "FailedReset", "Failed to reset VM")
 				} else {
 					r.Recorder.Eventf(vm, corev1.EventTypeNormal, "Reset", "Reset VM")
 				}
-			case kubridv1alpha1.VirtualMachineReboot:
+			case virtv1alpha1.VirtualMachineReboot:
 				// TODO: reboot
 				if err := r.getCloudHypervisorClient(vm).VmReboot(ctx); err != nil {
 					r.Recorder.Eventf(vm, corev1.EventTypeWarning, "FailedReboot", "Failed to reboot VM")
 				} else {
 					r.Recorder.Eventf(vm, corev1.EventTypeNormal, "Rebooted", "Rebooted VM")
 				}
-			case kubridv1alpha1.VirtualMachinePause:
+			case virtv1alpha1.VirtualMachinePause:
 				if err := r.getCloudHypervisorClient(vm).VmPause(ctx); err != nil {
 					r.Recorder.Eventf(vm, corev1.EventTypeWarning, "FailedPause", "Failed to pause VM")
 				} else {
 					r.Recorder.Eventf(vm, corev1.EventTypeNormal, "Paused", "Paused VM")
 				}
-			case kubridv1alpha1.VirtualMachineResume:
+			case virtv1alpha1.VirtualMachineResume:
 				if err := r.getCloudHypervisorClient(vm).VmResume(ctx); err != nil {
 					r.Recorder.Eventf(vm, corev1.EventTypeWarning, "FailedResume", "Failed to resume VM")
 				} else {
@@ -132,13 +132,13 @@ func (r *VMReconciler) reconcile(ctx context.Context, vm *kubridv1alpha1.Virtual
 	return nil
 }
 
-func (r *VMReconciler) getCloudHypervisorClient(vm *kubridv1alpha1.VirtualMachine) *cloudhypervisor.Client {
-	return cloudhypervisor.NewClient(fmt.Sprintf("/var/lib/kubelet/pods/%s/volumes/kubernetes.io~empty-dir/kubrid/ch.sock", string(vm.Status.VMPodUID)))
+func (r *VMReconciler) getCloudHypervisorClient(vm *virtv1alpha1.VirtualMachine) *cloudhypervisor.Client {
+	return cloudhypervisor.NewClient(fmt.Sprintf("/var/lib/kubelet/pods/%s/volumes/kubernetes.io~empty-dir/virtink/ch.sock", string(vm.Status.VMPodUID)))
 }
 
 func (r *VMReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&kubridv1alpha1.VirtualMachine{}).
+		For(&virtv1alpha1.VirtualMachine{}).
 		Owns(&corev1.Pod{}).
 		Complete(r)
 }

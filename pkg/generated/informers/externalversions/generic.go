@@ -5,7 +5,7 @@ package externalversions
 import (
 	"fmt"
 
-	v1alpha1 "github.com/smartxworks/kubrid/pkg/apis/kubrid/v1alpha1"
+	v1alpha1 "github.com/smartxworks/virtink/pkg/apis/virt/v1alpha1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )
@@ -36,9 +36,9 @@ func (f *genericInformer) Lister() cache.GenericLister {
 // TODO extend this to unknown resources with a client pool
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
-	// Group=kubrid.smartx.com, Version=v1alpha1
+	// Group=virt.virtink.smartx.com, Version=v1alpha1
 	case v1alpha1.SchemeGroupVersion.WithResource("virtualmachines"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Kubrid().V1alpha1().VirtualMachines().Informer()}, nil
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Virt().V1alpha1().VirtualMachines().Informer()}, nil
 
 	}
 

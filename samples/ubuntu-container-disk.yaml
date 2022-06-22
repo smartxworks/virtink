@@ -1,4 +1,4 @@
-apiVersion: kubrid.smartx.com/v1alpha1
+apiVersion: virt.virtink.smartx.com/v1alpha1
 kind: VirtualMachine
 metadata:
   name: ubuntu-container-disk
@@ -14,7 +14,7 @@ spec:
   volumes:
     - name: ubuntu
       containerDisk:
-        image: smartxworks/kubrid-container-disk-ubuntu
+        image: harbor.smartx.com/fengye87/virtink-container-disk-ubuntu
     - name: cloud-init
       cloudInit:
         userData: |-
