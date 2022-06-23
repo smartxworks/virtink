@@ -1,6 +1,7 @@
 # VirTink: Modern and Light Virtualization Add-on for Kubernetes
 
 [![build](https://github.com/smartxworks/virtink/actions/workflows/build.yml/badge.svg)](https://github.com/smartxworks/virtink/actions/workflows/build.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/smartxworks/virtink)](https://goreportcard.com/report/github.com/smartxworks/virtink)
 
 VirTink is a [Kubernetes](https://github.com/kubernetes/kubernetes) add-on for running [Cloud Hypervisor](https://github.com/cloud-hypervisor/cloud-hypervisor) virtual machines. By using Cloud Hypervisor as the underlying hypervisor, VirTink enables a light and secure way to run fully virtualized workloads in a canonical Kubernetes cluster.
 
