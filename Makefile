@@ -1,8 +1,10 @@
 all: test
 
 generate:
-	docker build -f hack/Dockerfile . | tee /dev/tty | tail -n1 | cut -d' ' -f3 | xargs -I{} \
-		docker run --rm -v $$PWD:/go/src/github.com/smartxworks/virtink -w /go/src/github.com/smartxworks/virtink {} ./hack/generate.sh
+	iidfile=$$(mktemp /tmp/iid-XXXXXX) && \
+	docker build -f hack/Dockerfile --iidfile $$iidfile . && \
+	docker run --rm -v $$PWD:/go/src/github.com/smartxworks/virtink -w /go/src/github.com/smartxworks/virtink $$(cat $$iidfile) ./hack/generate.sh && \
+	rm -rf $$iidfile
 
 fmt:
 	go fmt ./...
