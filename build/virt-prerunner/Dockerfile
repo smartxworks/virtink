@@ -14,7 +14,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build go build -a cmd/virt-prerunn
 
 FROM alpine
 
-RUN apk add --no-cache curl screen dnsmasq cdrkit iptables
+RUN apk add --no-cache tini curl screen dnsmasq cdrkit iptables
 
 RUN curl -sLo /usr/bin/cloud-hypervisor https://github.com/cloud-hypervisor/cloud-hypervisor/releases/download/v24.0/cloud-hypervisor-static && chmod +x /usr/bin/cloud-hypervisor
 RUN mkdir /var/lib/cloud-hypervisor && curl -sLo /var/lib/cloud-hypervisor/hypervisor-fw https://github.com/cloud-hypervisor/rust-hypervisor-firmware/releases/download/0.4.0/hypervisor-fw
@@ -22,6 +22,6 @@ RUN curl -sLo /usr/bin/ch-remote https://github.com/cloud-hypervisor/cloud-hyper
 
 COPY --from=builder /workspace/main /usr/bin/virt-prerunner
 COPY build/virt-prerunner/entrypoint.sh /entrypoint.sh
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/sbin/tini", "-g", "--", "/entrypoint.sh"]
 
 ADD build/virt-prerunner/virt-init-volume.sh /usr/bin/virt-init-volume
