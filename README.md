@@ -33,7 +33,7 @@ kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/
 VirTink can be installed as follows:
 
 ```bash
-kubectl apply -f https://github.com/smartxworks/virtink/releases/download/v0.1.0/virtink.yaml
+kubectl apply -f https://github.com/smartxworks/virtink/releases/download/v0.7.1/virtink.yaml
 ```
 
 ## License
