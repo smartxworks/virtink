@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/client-go/tools/record"
+	cdiv1beta1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -36,6 +37,8 @@ type VMReconciler struct {
 // +kubebuilder:rbac:groups=virt.virtink.smartx.com,resources=virtualmachines/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;update;patch
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch
+// +kubebuilder:rbac:groups=cdi.kubevirt.io,resources=datavolumes,verbs=get;list;watch
 
 func (r *VMReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var vm virtv1alpha1.VirtualMachine
@@ -338,6 +341,82 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 				Args:            []string{volumeMount.MountPath + "/rootfs.raw", strconv.FormatInt(volume.ContainerRootfs.Size.Value(), 10)},
 				VolumeMounts:    []corev1.VolumeMount{volumeMount},
 			})
+		case volume.PersistentVolumeClaim != nil:
+			vmPod.Spec.Volumes = append(vmPod.Spec.Volumes, corev1.Volume{
+				Name: volume.Name,
+				VolumeSource: corev1.VolumeSource{
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: volume.PersistentVolumeClaim.ClaimName,
+					},
+				},
+			})
+
+			pvcKey := types.NamespacedName{
+				Namespace: vm.Namespace,
+				Name:      volume.PersistentVolumeClaim.ClaimName,
+			}
+			var pvc corev1.PersistentVolumeClaim
+			if err := r.Client.Get(ctx, pvcKey, &pvc); err != nil {
+				return nil, fmt.Errorf("get PVC: %s", err)
+			}
+
+			if pvc.Spec.VolumeMode != nil && *pvc.Spec.VolumeMode == corev1.PersistentVolumeBlock {
+				volumeDevice := corev1.VolumeDevice{
+					Name:       volume.Name,
+					DevicePath: "/mnt/" + volume.Name,
+				}
+				vmPod.Spec.Containers[0].VolumeDevices = append(vmPod.Spec.Containers[0].VolumeDevices, volumeDevice)
+			} else {
+				volumeMount := corev1.VolumeMount{
+					Name:      volume.Name,
+					MountPath: "/mnt/" + volume.Name,
+				}
+				vmPod.Spec.Containers[0].VolumeMounts = append(vmPod.Spec.Containers[0].VolumeMounts, volumeMount)
+			}
+		case volume.DataVolume != nil:
+			var dv cdiv1beta1.DataVolume
+			dvKey := types.NamespacedName{
+				Name:      volume.DataVolume.VolumeName,
+				Namespace: vm.Namespace,
+			}
+			if err := r.Client.Get(ctx, dvKey, &dv); err != nil {
+				return nil, err
+			}
+			if dv.Status.Phase != cdiv1beta1.Succeeded {
+				return nil, fmt.Errorf("data volume is not ready: %s", volume.DataVolume.VolumeName)
+			}
+
+			vmPod.Spec.Volumes = append(vmPod.Spec.Volumes, corev1.Volume{
+				Name: volume.Name,
+				VolumeSource: corev1.VolumeSource{
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: dv.Status.ClaimName,
+					},
+				},
+			})
+
+			pvcKey := types.NamespacedName{
+				Namespace: vm.Namespace,
+				Name:      dv.Status.ClaimName,
+			}
+			var pvc corev1.PersistentVolumeClaim
+			if err := r.Client.Get(ctx, pvcKey, &pvc); err != nil {
+				return nil, fmt.Errorf("get PVC: %s", err)
+			}
+
+			if pvc.Spec.VolumeMode != nil && *pvc.Spec.VolumeMode == corev1.PersistentVolumeBlock {
+				volumeDevice := corev1.VolumeDevice{
+					Name:       volume.Name,
+					DevicePath: "/mnt/" + volume.Name,
+				}
+				vmPod.Spec.Containers[0].VolumeDevices = append(vmPod.Spec.Containers[0].VolumeDevices, volumeDevice)
+			} else {
+				volumeMount := corev1.VolumeMount{
+					Name:      volume.Name,
+					MountPath: "/mnt/" + volume.Name,
+				}
+				vmPod.Spec.Containers[0].VolumeMounts = append(vmPod.Spec.Containers[0].VolumeMounts, volumeMount)
+			}
 		default:
 			// ignored
 		}

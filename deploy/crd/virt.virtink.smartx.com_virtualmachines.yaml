@@ -1348,8 +1348,22 @@ spec:
                       - image
                       - size
                       type: object
+                    dataVolume:
+                      properties:
+                        volumeName:
+                          type: string
+                      required:
+                      - volumeName
+                      type: object
                     name:
                       type: string
+                    persistentVolumeClaim:
+                      properties:
+                        claimName:
+                          type: string
+                      required:
+                      - claimName
+                      type: object
                   required:
                   - name
                   type: object
