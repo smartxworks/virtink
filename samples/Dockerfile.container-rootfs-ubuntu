@@ -1,7 +1,7 @@
 FROM ubuntu:jammy AS rootfs
 
 RUN apt-get update -y && \
-    apt-get install -y --no-install-recommends systemd-sysv udev lsb-release cloud-init sudo && \
+    apt-get install -y --no-install-recommends systemd-sysv udev lsb-release cloud-init sudo openssh-server && \
     rm -rf /var/lib/apt/lists/*
 
 FROM smartxworks/virtink-container-rootfs-base
