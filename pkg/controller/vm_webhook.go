@@ -228,6 +228,10 @@ func ValidateMemory(ctx context.Context, memory *virtv1alpha1.Memory, fieldPath 
 		return errs
 	}
 
+	if memory.Size == nil {
+		errs = append(errs, field.Required(fieldPath.Child("size"), ""))
+		return errs
+	}
 	if memory.Size.Value() <= 0 {
 		errs = append(errs, field.Invalid(fieldPath.Child("size"), memory.Size.Value(), "must be greater than 0"))
 	}
