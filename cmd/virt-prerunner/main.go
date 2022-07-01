@@ -109,6 +109,15 @@ func buildVMConfig(ctx context.Context, vm *virtv1alpha1.VirtualMachine) (*cloud
 					diskConfig.Path = fmt.Sprintf("/mnt/%s/cloud-init.iso", volume.Name)
 				case volume.ContainerRootfs != nil:
 					diskConfig.Path = fmt.Sprintf("/mnt/%s/rootfs.raw", volume.Name)
+				case volume.PersistentVolumeClaim != nil, volume.DataVolume != nil:
+					diskConfig.Path = fmt.Sprintf("/mnt/%s", volume.Name)
+					fileInfo, err := os.Stat(diskConfig.Path)
+					if err != nil {
+						return nil, err
+					}
+					if fileInfo.IsDir() {
+						diskConfig.Path = filepath.Join(diskConfig.Path, "disk.img")
+					}
 				default:
 					return nil, fmt.Errorf("invalid source of volume %q", volume.Name)
 				}

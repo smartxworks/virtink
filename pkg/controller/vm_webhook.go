@@ -347,6 +347,22 @@ func ValidateVolumeSource(ctx context.Context, source *virtv1alpha1.VolumeSource
 			errs = append(errs, ValidateContainerRootfsVolumeSource(ctx, source.ContainerRootfs, fieldPath.Child("containerRootfs"))...)
 		}
 	}
+	if source.PersistentVolumeClaim != nil {
+		cnt++
+		if cnt > 1 {
+			errs = append(errs, field.Forbidden(fieldPath.Child("persistentVolumeClaim"), "may not specify more than 1 volume source"))
+		} else {
+			errs = append(errs, ValidatePersistentVolumeClaimSource(ctx, source.PersistentVolumeClaim, fieldPath.Child("persistentVolumeClaim"))...)
+		}
+	}
+	if source.DataVolume != nil {
+		cnt++
+		if cnt > 1 {
+			errs = append(errs, field.Forbidden(fieldPath.Child("dataVolume"), "may not specify more than 1 volume source"))
+		} else {
+			errs = append(errs, ValidateDataVolumeSource(ctx, source.DataVolume, fieldPath.Child("dataVolume"))...)
+		}
+	}
 	if cnt == 0 {
 		errs = append(errs, field.Required(fieldPath, "at least 1 volume source is required"))
 	}
@@ -427,6 +443,32 @@ func ValidateContainerRootfsVolumeSource(ctx context.Context, source *virtv1alph
 	}
 	if source.Size.Value() <= 0 {
 		errs = append(errs, field.Invalid(fieldPath.Child("size"), source.Size.Value(), "must be greater than 0"))
+	}
+	return errs
+}
+
+func ValidatePersistentVolumeClaimSource(ctx context.Context, source *virtv1alpha1.PersistentVolumeClaimVolumeSource, fieldPath *field.Path) field.ErrorList {
+	var errs field.ErrorList
+	if source == nil {
+		errs = append(errs, field.Required(fieldPath, ""))
+		return errs
+	}
+
+	if source.ClaimName == "" {
+		errs = append(errs, field.Required(fieldPath.Child("claimName"), ""))
+	}
+	return errs
+}
+
+func ValidateDataVolumeSource(ctx context.Context, source *virtv1alpha1.DataVolumeVolumeSource, fieldPath *field.Path) field.ErrorList {
+	var errs field.ErrorList
+	if source == nil {
+		errs = append(errs, field.Required(fieldPath, ""))
+		return errs
+	}
+
+	if source.VolumeName == "" {
+		errs = append(errs, field.Required(fieldPath.Child("volumeName"), ""))
 	}
 	return errs
 }

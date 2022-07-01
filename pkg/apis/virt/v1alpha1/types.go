@@ -89,9 +89,11 @@ type Volume struct {
 }
 
 type VolumeSource struct {
-	ContainerDisk   *ContainerDiskVolumeSource   `json:"containerDisk,omitempty"`
-	CloudInit       *CloudInitVolumeSource       `json:"cloudInit,omitempty"`
-	ContainerRootfs *ContainerRootfsVolumeSource `json:"containerRootfs,omitempty"`
+	ContainerDisk         *ContainerDiskVolumeSource         `json:"containerDisk,omitempty"`
+	CloudInit             *CloudInitVolumeSource             `json:"cloudInit,omitempty"`
+	ContainerRootfs       *ContainerRootfsVolumeSource       `json:"containerRootfs,omitempty"`
+	PersistentVolumeClaim *PersistentVolumeClaimVolumeSource `json:"persistentVolumeClaim,omitempty"`
+	DataVolume            *DataVolumeVolumeSource            `json:"dataVolume,omitempty"`
 }
 
 type ContainerDiskVolumeSource struct {
@@ -112,6 +114,14 @@ type ContainerRootfsVolumeSource struct {
 	Image           string            `json:"image"`
 	ImagePullPolicy corev1.PullPolicy `json:"imagePullPolicy,omitempty"`
 	Size            resource.Quantity `json:"size"`
+}
+
+type PersistentVolumeClaimVolumeSource struct {
+	ClaimName string `json:"claimName"`
+}
+
+type DataVolumeVolumeSource struct {
+	VolumeName string `json:"volumeName"`
 }
 
 type Network struct {
