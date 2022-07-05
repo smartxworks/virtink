@@ -61,7 +61,10 @@ func (r *VMReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Re
 		}
 	}
 
-	// TODO: GC
+	if err := r.gcVMPods(ctx, &vm); err != nil {
+		return ctrl.Result{}, fmt.Errorf("GC VM Pods: %s", err)
+	}
+
 	return ctrl.Result{}, nil
 }
 
@@ -446,7 +449,41 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 	return &vmPod, nil
 }
 
+func (r *VMReconciler) gcVMPods(ctx context.Context, vm *virtv1alpha1.VirtualMachine) error {
+	var vmPodList corev1.PodList
+	if err := r.List(ctx, &vmPodList, client.MatchingFields{"vmUID": string(vm.UID)}); err != nil {
+		return fmt.Errorf("list VM Pods: %s", err)
+	}
+
+	for _, vmPod := range vmPodList.Items {
+		if vmPod.DeletionTimestamp != nil && !vmPod.DeletionTimestamp.IsZero() {
+			continue
+		}
+
+		if vmPod.Name == vm.Status.VMPodName {
+			continue
+		}
+
+		if err := r.Delete(ctx, &vmPod); client.IgnoreNotFound(err) != nil {
+			return fmt.Errorf("delete VM Pod: %s", err)
+		}
+		r.Recorder.Eventf(vm, corev1.EventTypeNormal, "DeletedVMPod", fmt.Sprintf("Deleted VM Pod %q", vmPod.Name))
+	}
+	return nil
+}
+
 func (r *VMReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &corev1.Pod{}, "vmUID", func(obj client.Object) []string {
+		pod := obj.(*corev1.Pod)
+		owner := metav1.GetControllerOf(pod)
+		if owner != nil && owner.APIVersion == virtv1alpha1.SchemeGroupVersion.String() && owner.Kind == "VirtualMachine" {
+			return []string{string(owner.UID)}
+		}
+		return nil
+	}); err != nil {
+		return fmt.Errorf("index Pods by VM UID: %s", err)
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&virtv1alpha1.VirtualMachine{}).
 		Owns(&corev1.Pod{}).
