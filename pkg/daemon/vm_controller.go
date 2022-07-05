@@ -75,56 +75,66 @@ func (r *VMReconciler) reconcile(ctx context.Context, vm *virtv1alpha1.VirtualMa
 			vm.Status.Phase = virtv1alpha1.VirtualMachineRunning
 		}
 	case virtv1alpha1.VirtualMachineRunning:
-		if vm.Spec.RunPolicy == virtv1alpha1.RunPolicyHalted {
-			// TODO: shutdown with graceful timeout
-			if err := r.getCloudHypervisorClient(vm).VmShutdown(ctx); err != nil {
-				r.Recorder.Eventf(vm, corev1.EventTypeWarning, "FailedPowerOff", "Failed to powered off VM")
-				return fmt.Errorf("power off VM: %s", err)
-			}
-		} else {
-			switch vm.Status.PowerAction {
-			case virtv1alpha1.VirtualMachinePowerOff:
+		vmInfo, err := r.getCloudHypervisorClient(vm).VmInfo(ctx)
+		if err != nil {
+			// TODO: ignore VM not found error
+			return fmt.Errorf("get VM info: %s", err)
+		}
+
+		if vmInfo.State == "Running" || vmInfo.State == "Paused" {
+			if vm.Spec.RunPolicy == virtv1alpha1.RunPolicyHalted {
+				// TODO: shutdown with graceful timeout
 				if err := r.getCloudHypervisorClient(vm).VmShutdown(ctx); err != nil {
 					r.Recorder.Eventf(vm, corev1.EventTypeWarning, "FailedPowerOff", "Failed to powered off VM")
-				} else {
-					r.Recorder.Eventf(vm, corev1.EventTypeNormal, "PoweredOff", "Powered off VM")
+					return fmt.Errorf("power off VM: %s", err)
 				}
-			case virtv1alpha1.VirtualMachineShutdown:
-				if err := r.getCloudHypervisorClient(vm).VmPowerButton(ctx); err != nil {
-					r.Recorder.Eventf(vm, corev1.EventTypeWarning, "FailedShutdown", "Failed to shutdown VM")
-				} else {
-					r.Recorder.Eventf(vm, corev1.EventTypeNormal, "Shutdown", "Shutdown VM")
+			} else {
+				switch vm.Status.PowerAction {
+				case virtv1alpha1.VirtualMachinePowerOff:
+					if err := r.getCloudHypervisorClient(vm).VmShutdown(ctx); err != nil {
+						r.Recorder.Eventf(vm, corev1.EventTypeWarning, "FailedPowerOff", "Failed to powered off VM")
+					} else {
+						r.Recorder.Eventf(vm, corev1.EventTypeNormal, "PoweredOff", "Powered off VM")
+					}
+				case virtv1alpha1.VirtualMachineShutdown:
+					if err := r.getCloudHypervisorClient(vm).VmPowerButton(ctx); err != nil {
+						r.Recorder.Eventf(vm, corev1.EventTypeWarning, "FailedShutdown", "Failed to shutdown VM")
+					} else {
+						r.Recorder.Eventf(vm, corev1.EventTypeNormal, "Shutdown", "Shutdown VM")
+					}
+				case virtv1alpha1.VirtualMachineReset:
+					if err := r.getCloudHypervisorClient(vm).VmReboot(ctx); err != nil {
+						r.Recorder.Eventf(vm, corev1.EventTypeWarning, "FailedReset", "Failed to reset VM")
+					} else {
+						r.Recorder.Eventf(vm, corev1.EventTypeNormal, "Reset", "Reset VM")
+					}
+				case virtv1alpha1.VirtualMachineReboot:
+					// TODO: reboot
+					if err := r.getCloudHypervisorClient(vm).VmReboot(ctx); err != nil {
+						r.Recorder.Eventf(vm, corev1.EventTypeWarning, "FailedReboot", "Failed to reboot VM")
+					} else {
+						r.Recorder.Eventf(vm, corev1.EventTypeNormal, "Rebooted", "Rebooted VM")
+					}
+				case virtv1alpha1.VirtualMachinePause:
+					if err := r.getCloudHypervisorClient(vm).VmPause(ctx); err != nil {
+						r.Recorder.Eventf(vm, corev1.EventTypeWarning, "FailedPause", "Failed to pause VM")
+					} else {
+						r.Recorder.Eventf(vm, corev1.EventTypeNormal, "Paused", "Paused VM")
+					}
+				case virtv1alpha1.VirtualMachineResume:
+					if err := r.getCloudHypervisorClient(vm).VmResume(ctx); err != nil {
+						r.Recorder.Eventf(vm, corev1.EventTypeWarning, "FailedResume", "Failed to resume VM")
+					} else {
+						r.Recorder.Eventf(vm, corev1.EventTypeNormal, "Resumed", "Resumed VM")
+					}
+				default:
+					// ignored
 				}
-			case virtv1alpha1.VirtualMachineReset:
-				if err := r.getCloudHypervisorClient(vm).VmReboot(ctx); err != nil {
-					r.Recorder.Eventf(vm, corev1.EventTypeWarning, "FailedReset", "Failed to reset VM")
-				} else {
-					r.Recorder.Eventf(vm, corev1.EventTypeNormal, "Reset", "Reset VM")
-				}
-			case virtv1alpha1.VirtualMachineReboot:
-				// TODO: reboot
-				if err := r.getCloudHypervisorClient(vm).VmReboot(ctx); err != nil {
-					r.Recorder.Eventf(vm, corev1.EventTypeWarning, "FailedReboot", "Failed to reboot VM")
-				} else {
-					r.Recorder.Eventf(vm, corev1.EventTypeNormal, "Rebooted", "Rebooted VM")
-				}
-			case virtv1alpha1.VirtualMachinePause:
-				if err := r.getCloudHypervisorClient(vm).VmPause(ctx); err != nil {
-					r.Recorder.Eventf(vm, corev1.EventTypeWarning, "FailedPause", "Failed to pause VM")
-				} else {
-					r.Recorder.Eventf(vm, corev1.EventTypeNormal, "Paused", "Paused VM")
-				}
-			case virtv1alpha1.VirtualMachineResume:
-				if err := r.getCloudHypervisorClient(vm).VmResume(ctx); err != nil {
-					r.Recorder.Eventf(vm, corev1.EventTypeWarning, "FailedResume", "Failed to resume VM")
-				} else {
-					r.Recorder.Eventf(vm, corev1.EventTypeNormal, "Resumed", "Resumed VM")
-				}
-			default:
-				// ignored
-			}
 
-			vm.Status.PowerAction = ""
+				vm.Status.PowerAction = ""
+			}
+		} else {
+			vm.Status.Phase = virtv1alpha1.VirtualMachineSucceeded
 		}
 	default:
 		// ignored
