@@ -28,6 +28,7 @@ jobs:
         with:
           file: build/virt-prerunner/Dockerfile
           tags: smartxworks/virt-prerunner:${{ steps.get_version.outputs.version }}
+          platforms: linux/amd64,linux/arm64
           push: true
 
       - uses: docker/build-push-action@v2
@@ -35,48 +36,56 @@ jobs:
           file: build/virt-controller/Dockerfile
           build-args: PRERUNNER_IMAGE=smartxworks/virt-prerunner:${{ steps.get_version.outputs.version }}@${{ steps.build_virt_prerunner.outputs.digest }}
           tags: smartxworks/virt-controller:${{ steps.get_version.outputs.version }}
+          platforms: linux/amd64,linux/arm64
           push: true
 
       - uses: docker/build-push-action@v2
         with:
           file: build/virt-daemon/Dockerfile
           tags: smartxworks/virt-daemon:${{ steps.get_version.outputs.version }}
+          platforms: linux/amd64,linux/arm64
           push: true
 
       - uses: docker/build-push-action@v2
         with:
           file: build/virtink-container-disk-base/Dockerfile
           tags: smartxworks/virtink-container-disk-base
+          platforms: linux/amd64,linux/arm64
           push: true
 
       - uses: docker/build-push-action@v2
         with:
           file: build/virtink-kernel-base/Dockerfile
           tags: smartxworks/virtink-kernel-base
+          platforms: linux/amd64,linux/arm64
           push: true
 
       - uses: docker/build-push-action@v2
         with:
           file: build/virtink-container-rootfs-base/Dockerfile
           tags: smartxworks/virtink-container-rootfs-base
+          platforms: linux/amd64,linux/arm64
           push: true
 
       - uses: docker/build-push-action@v2
         with:
           file: samples/Dockerfile.container-disk-ubuntu
           tags: smartxworks/virtink-container-disk-ubuntu
+          platforms: linux/amd64,linux/arm64
           push: true
 
       - uses: docker/build-push-action@v2
         with:
           file: samples/Dockerfile.kernel-5.15.12
           tags: smartxworks/virtink-kernel-5.15.12
+          platforms: linux/amd64,linux/arm64
           push: true
 
       - uses: docker/build-push-action@v2
         with:
           file: samples/Dockerfile.container-rootfs-ubuntu
           tags: smartxworks/virtink-container-rootfs-ubuntu
+          platforms: linux/amd64,linux/arm64
           push: true
 
       - run: |
