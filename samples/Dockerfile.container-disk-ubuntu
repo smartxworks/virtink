@@ -1,3 +1,14 @@
 FROM smartxworks/virtink-container-disk-base
 
-ADD https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img /disk
+RUN apk add --no-cache curl
+
+RUN set -eux; \
+    case "$(uname -m)" in \
+        'x86_64') \
+            curl -sLo /disk https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img; \
+            ;; \
+        'aarch64') \
+            curl -sLo /disk https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-arm64.img; \
+            ;; \
+        *) echo >&2 "error: unsupported architecture '$(uname -m)'"; exit 1 ;; \
+    esac

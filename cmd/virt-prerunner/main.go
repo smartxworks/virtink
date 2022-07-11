@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"text/template"
 
@@ -87,6 +88,10 @@ func buildVMConfig(ctx context.Context, vm *virtv1alpha1.VirtualMachine) (*cloud
 		Memory: &cloudhypervisor.MemoryConfig{
 			Size: vm.Spec.Instance.Memory.Size.Value(),
 		},
+	}
+
+	if runtime.GOARCH == "arm64" {
+		vmConfig.Kernel.Path = "/var/lib/cloud-hypervisor/CLOUDHV_EFI.fd"
 	}
 
 	if vm.Spec.Instance.Kernel != nil {
