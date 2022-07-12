@@ -20,21 +20,89 @@ Virtink consists of 3 components:
 
 **NOTE**: Virtink is still a work in progress, its API may change without prior notice.
 
-## Prerequisites
-
-Virtink relies on [cert-manager](https://cert-manager.io/) 1.0 or above for SSL certificate management. You can install cert-manager as follows:
-
-```bash
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.8.0/cert-manager.yaml
-```
-
 ## Installation
 
-Virtink can be installed as follows:
+Prerequisites:
+
+- Kubernetes 1.16 ~ 1.24
+- [cert-manager](https://cert-manager.io/) 1.0 ~ 1.8. You can install it with `kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.8.2/cert-manager.yaml`
+
+Install all Virtink components:
 
 ```bash
-kubectl apply -f https://github.com/smartxworks/virtink/releases/download/v0.7.1/virtink.yaml
+kubectl apply -f https://github.com/smartxworks/virtink/releases/download/v0.8.0/virtink.yaml
 ```
+
+Once you have deployed Virtink, you can [create your virtual machines](#create-a-vm).
+
+## Getting Started
+
+### Create a VM
+
+Apply the following manifest to Kubernetes. Note it uses a container disk and as such doesn’t persist data.
+
+```bash
+cat <<EOF | kubectl apply -f -
+apiVersion: virt.virtink.smartx.com/v1alpha1
+kind: VirtualMachine
+metadata:
+  name: ubuntu-container-disk
+spec:
+  instance:
+    memory:
+      size: 1Gi
+    disks:
+      - name: ubuntu
+      - name: cloud-init
+    interfaces:
+      - name: pod
+  volumes:
+    - name: ubuntu
+      containerDisk:
+        image: smartxworks/virtink-container-disk-ubuntu
+    - name: cloud-init
+      cloudInit:
+        userData: |-
+          #cloud-config
+          password: password
+          chpasswd: { expire: False }
+          ssh_pwauth: True
+  networks:
+    - name: pod
+      pod: {}
+EOF
+```
+
+Like starting pods, it will take some time to pull the image and start running the VM. You can wait for the VM become running as follows:
+
+```bash
+kubectl wait vm ubuntu-container-disk --for jsonpath='{.status.phase}'=Running
+```
+
+### Access the VM (via SSH)
+
+The easiest way to access the VM is via a SSH client inside the cluster. You can access the VM created above as follows:
+
+```bash
+export VM_NAME=ubuntu-container-disk
+export VM_POD_NAME=$(kubectl get vm $VM_NAME -o jsonpath='{.status.vmPodName}')
+export VM_IP=$(kubectl get pod $VM_POD_NAME -o jsonpath='{.status.podIP}')
+kubectl run $VM_NAME-ssh --rm --image=alpine --restart=Never -it -- /bin/sh -c "apk add openssh-client && ssh ubuntu@$VM_IP"
+```
+
+Enter `password` when you are prompted to enter password, which is set by the cloud-init data in the VM manifest.
+
+### Manage the VM
+
+Virtink supports various VM power actions. For example, you can ACPI shutdown the VM created above as follows:
+
+```bash
+export VM_NAME=ubuntu-container-disk
+export POWER_ACTION=Shutdown
+kubectl patch vm $VM_NAME --subresource=status --type=merge -p "{\"status\":{\"powerAction\":\"$POWER_ACTION\"}}"
+```
+
+You can also `PowerOff`, `Reset`, `Reboot` or `Pause` a running VM, or `Resume` a paused one. To start a powered-off VM, you can `PowerOn` it.
 
 ## License
 
