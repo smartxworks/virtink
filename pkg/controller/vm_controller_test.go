@@ -10,8 +10,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/kubernetes/scheme"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	virtv1alpha1 "github.com/smartxworks/virtink/pkg/apis/virt/v1alpha1"
 )
@@ -213,25 +211,24 @@ var _ = Describe("VM controller", func() {
 			}
 			Expect(k8sClient.Create(ctx, &vm)).To(Succeed())
 
-			By("creating the VM pod")
+			By("updating VM phase to Scheduling")
 			vmPodKey = types.NamespacedName{
 				Name:      uuid.New().String(),
 				Namespace: vmKey.Namespace,
 			}
-			vmPod := corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      vmPodKey.Name,
-					Namespace: vmPodKey.Namespace,
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{{
-						Name:  "container",
-						Image: "image",
-					}},
-				},
-			}
-			Expect(controllerutil.SetControllerReference(&vm, &vmPod, scheme.Scheme)).To(Succeed())
-			Expect(k8sClient.Create(ctx, &vmPod)).To(Succeed())
+			Eventually(func() bool {
+				var vm virtv1alpha1.VirtualMachine
+				Expect(k8sClient.Get(ctx, vmKey, &vm)).To(Succeed())
+				vm.Status.Phase = virtv1alpha1.VirtualMachineScheduling
+				vm.Status.VMPodName = vmPodKey.Name
+				return k8sClient.Status().Update(ctx, &vm) == nil
+			}).Should(BeTrue())
+
+			By("checking the VM pod has been created")
+			Eventually(func() bool {
+				var vmPod corev1.Pod
+				return k8sClient.Get(ctx, vmPodKey, &vmPod) == nil
+			}).Should(BeTrue())
 
 			By("binding the VM pod")
 			nodeName := uuid.New().String()
