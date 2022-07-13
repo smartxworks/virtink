@@ -121,6 +121,19 @@ kubectl patch vm $VM_NAME --subresource=status --type=merge -p "{\"status\":{\"p
 
 You can also `PowerOff`, `Reset`, `Reboot` or `Pause` a running VM, or `Resume` a paused one. To start a powered-off VM, you can `PowerOn` it.
 
+## Roadmap
+
+- [x] VM lifecycle management
+- [x] Container disks
+- [x] Direct kernel boot with container rootfs
+- [x] Pod network
+- [x] Multus CNI networks
+- [x] Persistent volumes
+- [x] CDI data volumes
+- [x] ARM64 support
+- [ ] VM live migration
+- [ ] SR-IOV NIC passthrough
+
 ## License
 
 This project is distributed under the [Apache License, Version 2.0](LICENSE).
