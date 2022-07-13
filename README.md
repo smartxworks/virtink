@@ -8,8 +8,8 @@ Virtink is a [Kubernetes](https://github.com/kubernetes/kubernetes) add-on for r
 
 Compared to [KubeVirt](https://github.com/kubevirt/kubevirt), Virtink:
 
-- does not use libvirt or QEMU. By leveraging Cloud Hypervisor, VMs has lower memory footprints, higher performance and smaller attack surface.
-- does not require a long-running per-Pod launcher process, which further reduces runtime overheads.
+- does not use libvirt or QEMU. By leveraging Cloud Hypervisor, VMs has lower memory (≈30MB) footprints, higher performance and smaller attack surface.
+- does not require a long-running per-Pod launcher process, which further reduces runtime memory overhead (≈80MB).
 - is an especially good fit for running fully isolated Kubernetes clusters in an existing Kubernetes cluster. See our [Cluster API provider](https://github.com/smartxworks/cluster-api-provider-virtink) and the [knest](https://github.com/smartxworks/knest) tool for more details.
 
 Virtink consists of 3 components:
