@@ -133,6 +133,7 @@ You can also `PowerOff`, `Reset`, `Reboot` or `Pause` a running VM, or `Resume` 
 - [x] ARM64 support
 - [ ] VM live migration
 - [ ] SR-IOV NIC passthrough
+- [ ] GPU passthrough
 
 ## License
 
