@@ -129,7 +129,7 @@ You can also `PowerOff`, `Reset`, `Reboot` or `Pause` a running VM, or `Resume` 
 - [x] Pod network
 - [x] Multus CNI networks
 - [x] Persistent volumes
-- [x] CDI data volumes
+- [x] [CDI data volumes](docs/cdi-data-volume-disk.md)
 - [x] ARM64 support
 - [ ] VM live migration
 - [ ] SR-IOV NIC passthrough
