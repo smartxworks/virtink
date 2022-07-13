@@ -22,10 +22,27 @@ Virtink consists of 3 components:
 
 ## Installation
 
-Prerequisites:
+### Requirements
 
-- Kubernetes 1.16 ~ 1.24
-- [cert-manager](https://cert-manager.io/) 1.0 ~ 1.8. You can install it with `kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.8.2/cert-manager.yaml`
+A few requirements need to be met before you can begin:
+
+- Kubernetes cluster 1.16 ~ 1.24
+- Kubernetes apiserver must have `--allow-privileged=true` in order to run Virtink's privileged DaemonSet. It's usually set by default.
+
+#### Container Runtime Support
+
+Virtink currently supports the following container runtimes:
+
+- Docker
+- containerd
+
+Other container runtimes, which do not use virtualization features, should work too. However, they are not tested officially.
+
+#### Hardware Virtualization Support
+
+Hardware with virtualization support is required. You should check if `/dev/kvm` exists on each Kubernetes nodes.
+
+### Install Virtink
 
 Install all Virtink components:
 
