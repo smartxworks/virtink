@@ -8,6 +8,7 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 720
     steps:
       - id: get_version
         run: echo ::set-output name=version::${GITHUB_REF/refs\/tags\//}
@@ -67,30 +68,6 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
 
-      - run: |
-          curl -sLo /tmp/skaffold https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-amd64
-          chmod +x /tmp/skaffold
-          /tmp/skaffold render --default-repo=smartxworks --offline=true > virtink.yaml
-
-      - uses: softprops/action-gh-release@v1
-        with:
-          files: virtink.yaml
-
-  release_samples:
-    needs: release
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-
-      - uses: docker/setup-qemu-action@v2
-
-      - uses: docker/setup-buildx-action@v2
-
-      - uses: docker/login-action@v2
-        with:
-          username: smartxrocks
-          password: ${{ secrets.DOCKERHUB_PUSH_TOKEN }}
-
       - uses: docker/build-push-action@v2
         with:
           file: samples/Dockerfile.container-disk-ubuntu
@@ -111,3 +88,12 @@ jobs:
           tags: smartxworks/virtink-container-rootfs-ubuntu
           platforms: linux/amd64,linux/arm64
           push: true
+
+      - run: |
+          curl -sLo /tmp/skaffold https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-amd64
+          chmod +x /tmp/skaffold
+          /tmp/skaffold render --default-repo=smartxworks --offline=true > virtink.yaml
+
+      - uses: softprops/action-gh-release@v1
+        with:
+          files: virtink.yaml
