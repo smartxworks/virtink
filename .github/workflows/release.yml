@@ -8,7 +8,6 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
-    timeout-minutes: 720
     steps:
       - id: get_version
         run: echo ::set-output name=version::${GITHUB_REF/refs\/tags\//}
@@ -65,27 +64,6 @@ jobs:
         with:
           file: build/virtink-container-rootfs-base/Dockerfile
           tags: smartxworks/virtink-container-rootfs-base
-          platforms: linux/amd64,linux/arm64
-          push: true
-
-      - uses: docker/build-push-action@v2
-        with:
-          file: samples/Dockerfile.container-disk-ubuntu
-          tags: smartxworks/virtink-container-disk-ubuntu
-          platforms: linux/amd64,linux/arm64
-          push: true
-
-      - uses: docker/build-push-action@v2
-        with:
-          file: samples/Dockerfile.kernel-5.15.12
-          tags: smartxworks/virtink-kernel-5.15.12
-          platforms: linux/amd64,linux/arm64
-          push: true
-
-      - uses: docker/build-push-action@v2
-        with:
-          file: samples/Dockerfile.container-rootfs-ubuntu
-          tags: smartxworks/virtink-container-rootfs-ubuntu
           platforms: linux/amd64,linux/arm64
           push: true
 
