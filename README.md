@@ -57,18 +57,21 @@ Once you have deployed Virtink, you can [create your virtual machines](#create-a
 
 ### Create a VM
 
-Apply the following manifest to Kubernetes. Note it uses a container disk and as such doesn’t persist data.
+Apply the following manifest to Kubernetes. Note it uses a [container rootfs](samples/Dockerfile.container-rootfs-ubuntu) and as such doesn’t persist data.
 
 ```bash
 cat <<EOF | kubectl apply -f -
 apiVersion: virt.virtink.smartx.com/v1alpha1
 kind: VirtualMachine
 metadata:
-  name: ubuntu-container-disk
+  name: ubuntu-container-rootfs
 spec:
   instance:
     memory:
       size: 1Gi
+    kernel:
+      image: smartxworks/virtink-kernel-5.15.12
+      cmdline: "console=ttyS0 root=/dev/vda rw"
     disks:
       - name: ubuntu
       - name: cloud-init
@@ -76,8 +79,9 @@ spec:
       - name: pod
   volumes:
     - name: ubuntu
-      containerDisk:
-        image: smartxworks/virtink-container-disk-ubuntu
+      containerRootfs:
+        image: smartxworks/virtink-container-rootfs-ubuntu
+        size: 4Gi
     - name: cloud-init
       cloudInit:
         userData: |-
@@ -94,7 +98,7 @@ EOF
 Like starting pods, it will take some time to pull the image and start running the VM. You can wait for the VM become running as follows:
 
 ```bash
-kubectl wait vm ubuntu-container-disk --for jsonpath='{.status.phase}'=Running
+kubectl wait vm ubuntu-container-rootfs --for jsonpath='{.status.phase}'=Running --timeout -1s
 ```
 
 ### Access the VM (via SSH)
@@ -102,25 +106,25 @@ kubectl wait vm ubuntu-container-disk --for jsonpath='{.status.phase}'=Running
 The easiest way to access the VM is via a SSH client inside the cluster. You can access the VM created above as follows:
 
 ```bash
-export VM_NAME=ubuntu-container-disk
+export VM_NAME=ubuntu-container-rootfs
 export VM_POD_NAME=$(kubectl get vm $VM_NAME -o jsonpath='{.status.vmPodName}')
 export VM_IP=$(kubectl get pod $VM_POD_NAME -o jsonpath='{.status.podIP}')
-kubectl run $VM_NAME-ssh --rm --image=alpine --restart=Never -it -- /bin/sh -c "apk add openssh-client && ssh ubuntu@$VM_IP"
+kubectl run ssh-$VM_NAME --rm --image=alpine --restart=Never -it -- /bin/sh -c "apk add openssh-client && ssh ubuntu@$VM_IP"
 ```
 
 Enter `password` when you are prompted to enter password, which is set by the cloud-init data in the VM manifest.
 
 ### Manage the VM
 
-Virtink supports various VM power actions. For example, you can ACPI shutdown the VM created above as follows:
+Virtink supports various VM power actions. For example, you can power off the VM created above as follows:
 
 ```bash
-export VM_NAME=ubuntu-container-disk
-export POWER_ACTION=Shutdown
+export VM_NAME=ubuntu-container-rootfs
+export POWER_ACTION=PowerOff
 kubectl patch vm $VM_NAME --subresource=status --type=merge -p "{\"status\":{\"powerAction\":\"$POWER_ACTION\"}}"
 ```
 
-You can also `PowerOff`, `Reset`, `Reboot` or `Pause` a running VM, or `Resume` a paused one. To start a powered-off VM, you can `PowerOn` it.
+You can also `Shutdown`, `Reset`, `Reboot` or `Pause` a running VM, or `Resume` a paused one. To start a powered-off VM, you can `PowerOn` it.
 
 ## Roadmap
 
