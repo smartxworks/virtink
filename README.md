@@ -126,6 +126,10 @@ kubectl patch vm $VM_NAME --subresource=status --type=merge -p "{\"status\":{\"p
 
 You can also `Shutdown`, `Reset`, `Reboot` or `Pause` a running VM, or `Resume` a paused one. To start a powered-off VM, you can `PowerOn` it.
 
+## Demo Recording
+
+[![asciicast](https://asciinema.org/a/509484.svg)](https://asciinema.org/a/509484)
+
 ## Roadmap
 
 - [x] VM lifecycle management
