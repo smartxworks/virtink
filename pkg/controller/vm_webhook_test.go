@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	virtv1alpha1 "github.com/smartxworks/virtink/pkg/apis/virt/v1alpha1"
@@ -53,6 +54,108 @@ func TestValidateVM(t *testing.T) {
 		invalidFields []string
 	}{{
 		vm: validVM,
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			vm := validVM.DeepCopy()
+			vm.Spec.Instance.CPU.DedicatedCPUPlacement = true
+			vm.Spec.Resources = corev1.ResourceRequirements{
+				Requests: map[corev1.ResourceName]resource.Quantity{
+					corev1.ResourceCPU:    resource.MustParse("0"),
+					corev1.ResourceMemory: resource.MustParse("1Gi"),
+				},
+				Limits: map[corev1.ResourceName]resource.Quantity{
+					corev1.ResourceCPU:    resource.MustParse("1"),
+					corev1.ResourceMemory: resource.MustParse("1Gi"),
+				},
+			}
+			return vm
+		}(),
+		invalidFields: []string{"spec.resources.requests.cpu", "spec.resources.limits.cpu"},
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			vm := validVM.DeepCopy()
+			vm.Spec.Instance.CPU.DedicatedCPUPlacement = true
+			vm.Spec.Resources = corev1.ResourceRequirements{
+				Requests: map[corev1.ResourceName]resource.Quantity{
+					corev1.ResourceCPU:    resource.MustParse("1"),
+					corev1.ResourceMemory: resource.MustParse("1Gi"),
+				},
+				Limits: map[corev1.ResourceName]resource.Quantity{
+					corev1.ResourceCPU:    resource.MustParse("0"),
+					corev1.ResourceMemory: resource.MustParse("1Gi"),
+				},
+			}
+			return vm
+		}(),
+		invalidFields: []string{"spec.resources.limits.cpu"},
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			vm := validVM.DeepCopy()
+			vm.Spec.Instance.CPU.DedicatedCPUPlacement = true
+			vm.Spec.Resources = corev1.ResourceRequirements{
+				Requests: map[corev1.ResourceName]resource.Quantity{
+					corev1.ResourceCPU:    resource.MustParse("2"),
+					corev1.ResourceMemory: resource.MustParse("1Gi"),
+				},
+				Limits: map[corev1.ResourceName]resource.Quantity{
+					corev1.ResourceCPU:    resource.MustParse("2"),
+					corev1.ResourceMemory: resource.MustParse("1Gi"),
+				},
+			}
+			return vm
+		}(),
+		invalidFields: []string{"spec.resources.requests.cpu"},
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			vm := validVM.DeepCopy()
+			vm.Spec.Instance.CPU.DedicatedCPUPlacement = true
+			vm.Spec.Resources = corev1.ResourceRequirements{
+				Requests: map[corev1.ResourceName]resource.Quantity{
+					corev1.ResourceCPU:    resource.MustParse("1"),
+					corev1.ResourceMemory: resource.MustParse("0"),
+				},
+				Limits: map[corev1.ResourceName]resource.Quantity{
+					corev1.ResourceCPU:    resource.MustParse("1"),
+					corev1.ResourceMemory: resource.MustParse("1Gi"),
+				},
+			}
+			return vm
+		}(),
+		invalidFields: []string{"spec.resources.requests.memory", "spec.resources.limits.memory"},
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			vm := validVM.DeepCopy()
+			vm.Spec.Instance.CPU.DedicatedCPUPlacement = true
+			vm.Spec.Resources = corev1.ResourceRequirements{
+				Requests: map[corev1.ResourceName]resource.Quantity{
+					corev1.ResourceCPU:    resource.MustParse("1"),
+					corev1.ResourceMemory: resource.MustParse("1Gi"),
+				},
+				Limits: map[corev1.ResourceName]resource.Quantity{
+					corev1.ResourceCPU:    resource.MustParse("1"),
+					corev1.ResourceMemory: resource.MustParse("0"),
+				},
+			}
+			return vm
+		}(),
+		invalidFields: []string{"spec.resources.limits.memory"},
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			vm := validVM.DeepCopy()
+			vm.Spec.Instance.CPU.DedicatedCPUPlacement = true
+			vm.Spec.Resources = corev1.ResourceRequirements{
+				Requests: map[corev1.ResourceName]resource.Quantity{
+					corev1.ResourceCPU:    resource.MustParse("1"),
+					corev1.ResourceMemory: resource.MustParse("512Mi"),
+				},
+				Limits: map[corev1.ResourceName]resource.Quantity{
+					corev1.ResourceCPU:    resource.MustParse("1"),
+					corev1.ResourceMemory: resource.MustParse("512Mi"),
+				},
+			}
+			return vm
+		}(),
+		invalidFields: []string{"spec.resources.requests.memory"},
 	}, {
 		vm: func() *virtv1alpha1.VirtualMachine {
 			vm := validVM.DeepCopy()

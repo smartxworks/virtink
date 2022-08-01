@@ -23,6 +23,7 @@ import (
 
 	virtv1alpha1 "github.com/smartxworks/virtink/pkg/apis/virt/v1alpha1"
 	"github.com/smartxworks/virtink/pkg/cloudhypervisor"
+	"github.com/smartxworks/virtink/pkg/cpuset"
 )
 
 func main() {
@@ -46,9 +47,18 @@ func main() {
 	if vmConfig.Cmdline != nil {
 		cloudHypervisorCmd = append(cloudHypervisorCmd, "--cmdline", fmt.Sprintf("'%s'", vmConfig.Cmdline.Args))
 	}
-	cloudHypervisorCmd = append(cloudHypervisorCmd, "--cpus", fmt.Sprintf("boot=%d,topology=%d:%d:%d:%d",
+
+	vcpuToPCPU := []string{}
+	for _, affinity := range vmConfig.Cpus.Affinity {
+		vcpuToPCPU = append(vcpuToPCPU, fmt.Sprintf("%d@[%d]", affinity.Vcpu, affinity.HostCpus[0]))
+	}
+	cpuAffinity := ""
+	if len(vcpuToPCPU) > 0 {
+		cpuAffinity = fmt.Sprintf("[%s]", strings.Join(vcpuToPCPU, ","))
+	}
+	cloudHypervisorCmd = append(cloudHypervisorCmd, "--cpus", fmt.Sprintf("boot=%d,topology=%d:%d:%d:%d,affinity=%s",
 		vmConfig.Cpus.BootVcpus, vmConfig.Cpus.Topology.ThreadsPerCore, vmConfig.Cpus.Topology.CoresPerDie,
-		vmConfig.Cpus.Topology.DiesPerPackage, vmConfig.Cpus.Topology.Packages))
+		vmConfig.Cpus.Topology.DiesPerPackage, vmConfig.Cpus.Topology.Packages, cpuAffinity))
 	cloudHypervisorCmd = append(cloudHypervisorCmd, "--memory", fmt.Sprintf("size=%d", vmConfig.Memory.Size))
 
 	if len(vmConfig.Disks) > 0 {
@@ -106,6 +116,27 @@ func buildVMConfig(ctx context.Context, vm *virtv1alpha1.VirtualMachine) (*cloud
 		vmConfig.Kernel.Path = "/mnt/virtink-kernel/vmlinux"
 		vmConfig.Cmdline = &cloudhypervisor.CmdLineConfig{
 			Args: vm.Spec.Instance.Kernel.Cmdline,
+		}
+	}
+
+	if vm.Spec.Instance.CPU.DedicatedCPUPlacement {
+		cpuSet, err := cpuset.Get()
+		if err != nil {
+			return nil, fmt.Errorf("get CPU set: %s", err)
+		}
+
+		pcpus := cpuSet.ToSlice()
+		numVCPUs := int(vm.Spec.Instance.CPU.Sockets * vm.Spec.Instance.CPU.CoresPerSocket)
+		if len(pcpus) != numVCPUs {
+			// TODO: report an event to object VM
+			return nil, fmt.Errorf("number of pCPUs and vCPUs must match")
+		}
+
+		for i := 0; i < numVCPUs; i++ {
+			vmConfig.Cpus.Affinity = append(vmConfig.Cpus.Affinity, &cloudhypervisor.CpuAffinity{
+				Vcpu:     i,
+				HostCpus: []int{pcpus[i]},
+			})
 		}
 	}
 

@@ -221,6 +221,7 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 			Name:            "init-kernel",
 			Image:           vm.Spec.Instance.Kernel.Image,
 			ImagePullPolicy: vm.Spec.Instance.Kernel.ImagePullPolicy,
+			Resources:       vm.Spec.Resources,
 			Args:            []string{volumeMount.MountPath + "/vmlinux"},
 			VolumeMounts:    []corev1.VolumeMount{volumeMount},
 		})
@@ -246,15 +247,17 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 				Name:            "init-volume-" + volume.Name,
 				Image:           volume.ContainerDisk.Image,
 				ImagePullPolicy: volume.ContainerDisk.ImagePullPolicy,
+				Resources:       vm.Spec.Resources,
 				Args:            []string{volumeMount.MountPath + "/disk.raw"},
 				VolumeMounts:    []corev1.VolumeMount{volumeMount},
 			})
 		case volume.CloudInit != nil:
 			initContainer := corev1.Container{
-				Name:    "init-volume-" + volume.Name,
-				Image:   vmPod.Spec.Containers[0].Image,
-				Command: []string{"virt-init-volume"},
-				Args:    []string{"cloud-init"},
+				Name:      "init-volume-" + volume.Name,
+				Image:     vmPod.Spec.Containers[0].Image,
+				Resources: vm.Spec.Resources,
+				Command:   []string{"virt-init-volume"},
+				Args:      []string{"cloud-init"},
 			}
 
 			metaData := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("instance-id: %s\nlocal-hostname: %s", vm.UID, vm.Name)))
@@ -343,6 +346,7 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 				Name:            "init-volume-" + volume.Name,
 				Image:           volume.ContainerRootfs.Image,
 				ImagePullPolicy: volume.ContainerRootfs.ImagePullPolicy,
+				Resources:       vm.Spec.Resources,
 				Args:            []string{volumeMount.MountPath + "/rootfs.raw", strconv.FormatInt(volume.ContainerRootfs.Size.Value(), 10)},
 				VolumeMounts:    []corev1.VolumeMount{volumeMount},
 			})

@@ -9,6 +9,7 @@ import (
 
 	"github.com/r3labs/diff/v2"
 	admissionv1 "k8s.io/api/admission/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -149,6 +150,37 @@ func ValidateVMSpec(ctx context.Context, spec *virtv1alpha1.VirtualMachineSpec, 
 	if spec == nil {
 		errs = append(errs, field.Required(fieldPath, ""))
 		return errs
+	}
+
+	if spec.Instance.CPU.DedicatedCPUPlacement {
+		cpuRequestField := fieldPath.Child("resources.requests").Child(string(corev1.ResourceCPU))
+		if spec.Resources.Requests.Cpu().IsZero() {
+			errs = append(errs, field.Required(cpuRequestField, ""))
+		} else if spec.Resources.Requests.Cpu().Value() != int64(spec.Instance.CPU.Sockets*spec.Instance.CPU.CoresPerSocket) {
+			errs = append(errs, field.Invalid(cpuRequestField, spec.Resources.Requests.Cpu(), "must equal to number of vCPUs"))
+		}
+
+		cpuLimitField := fieldPath.Child("resources.limits").Child(string(corev1.ResourceCPU))
+		if spec.Resources.Limits.Cpu().IsZero() {
+			errs = append(errs, field.Required(cpuLimitField, ""))
+		} else if !spec.Resources.Limits.Cpu().Equal(*spec.Resources.Requests.Cpu()) {
+			errs = append(errs, field.Invalid(cpuLimitField, spec.Resources.Limits.Cpu(), "must equal to CPU request"))
+		}
+
+		memoryRequestField := fieldPath.Child("resources.requests").Child(string(corev1.ResourceMemory))
+		if spec.Resources.Requests.Memory().IsZero() {
+			errs = append(errs, field.Required(memoryRequestField, ""))
+		} else if spec.Resources.Requests.Memory().Cmp(*spec.Instance.Memory.Size) < 0 {
+			// TODO: add overhead
+			errs = append(errs, field.Invalid(memoryRequestField, spec.Resources.Requests.Memory(), "must not be less than memory size"))
+		}
+
+		memoryLimitField := fieldPath.Child("resources.limits").Child(string(corev1.ResourceMemory))
+		if spec.Resources.Limits.Memory().IsZero() {
+			errs = append(errs, field.Required(memoryLimitField, ""))
+		} else if !spec.Resources.Limits.Memory().Equal(*spec.Resources.Requests.Memory()) {
+			errs = append(errs, field.Invalid(memoryLimitField, spec.Resources.Limits.Memory(), "must equal to memory request"))
+		}
 	}
 
 	errs = append(errs, ValidateInstance(ctx, &spec.Instance, fieldPath.Child("instance"))...)
