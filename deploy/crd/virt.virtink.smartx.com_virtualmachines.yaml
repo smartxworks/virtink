@@ -868,6 +868,8 @@ spec:
                       coresPerSocket:
                         format: int32
                         type: integer
+                      dedicatedCPUPlacement:
+                        type: boolean
                       sockets:
                         format: int32
                         type: integer

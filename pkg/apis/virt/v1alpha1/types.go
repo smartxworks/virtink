@@ -60,8 +60,9 @@ type Instance struct {
 }
 
 type CPU struct {
-	Sockets        uint32 `json:"sockets,omitempty"`
-	CoresPerSocket uint32 `json:"coresPerSocket,omitempty"`
+	Sockets               uint32 `json:"sockets,omitempty"`
+	CoresPerSocket        uint32 `json:"coresPerSocket,omitempty"`
+	DedicatedCPUPlacement bool   `json:"dedicatedCPUPlacement,omitempty"`
 }
 
 type Memory struct {
