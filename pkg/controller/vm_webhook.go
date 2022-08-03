@@ -76,6 +76,14 @@ func MutateVM(ctx context.Context, vm *virtv1alpha1.VirtualMachine, oldVM *virtv
 	if vm.Spec.Instance.Memory.Size == nil {
 		vm.Spec.Instance.Memory.Size = vm.Spec.Resources.Requests.Memory()
 	}
+
+	for i := range vm.Spec.Instance.Interfaces {
+		if vm.Spec.Instance.Interfaces[i].Bridge == nil && vm.Spec.Instance.Interfaces[i].SRIOV == nil {
+			vm.Spec.Instance.Interfaces[i].InterfaceBindingMethod = virtv1alpha1.InterfaceBindingMethod{
+				Bridge: &virtv1alpha1.InterfaceBridge{},
+			}
+		}
+	}
 	return nil
 }
 
@@ -276,6 +284,33 @@ func ValidateInterface(ctx context.Context, iface *virtv1alpha1.Interface, field
 
 	if iface.Name == "" {
 		errs = append(errs, field.Required(fieldPath.Child("name"), ""))
+	}
+	errs = append(errs, ValidateInterfaceBindingMethod(ctx, &iface.InterfaceBindingMethod, fieldPath)...)
+	return errs
+}
+
+func ValidateInterfaceBindingMethod(ctx context.Context, bindingMethod *virtv1alpha1.InterfaceBindingMethod, fieldPath *field.Path) field.ErrorList {
+	var errs field.ErrorList
+	if bindingMethod == nil {
+		errs = append(errs, field.Required(fieldPath, ""))
+		return errs
+	}
+
+	cnt := 0
+	if bindingMethod.Bridge != nil {
+		cnt++
+		if cnt > 1 {
+			errs = append(errs, field.Forbidden(fieldPath.Child("bridge"), "may not specify more than 1 binding method"))
+		}
+	}
+	if bindingMethod.SRIOV != nil {
+		cnt++
+		if cnt > 1 {
+			errs = append(errs, field.Forbidden(fieldPath.Child("sriov"), "may not specify more than 1 binding method"))
+		}
+	}
+	if cnt == 0 {
+		errs = append(errs, field.Required(fieldPath, "at least 1 binding method is required"))
 	}
 	return errs
 }

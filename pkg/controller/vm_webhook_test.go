@@ -26,6 +26,9 @@ func TestValidateVM(t *testing.T) {
 				}},
 				Interfaces: []virtv1alpha1.Interface{{
 					Name: "net-1",
+					InterfaceBindingMethod: virtv1alpha1.InterfaceBindingMethod{
+						Bridge: &virtv1alpha1.InterfaceBridge{},
+					},
 				}},
 			},
 			Volumes: []virtv1alpha1.Volume{{
@@ -100,6 +103,21 @@ func TestValidateVM(t *testing.T) {
 		}(),
 		invalidFields: []string{"spec.instance.interfaces[0].name"},
 	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			vm := validVM.DeepCopy()
+			vm.Spec.Instance.Interfaces[0].Bridge = nil
+			return vm
+		}(),
+		invalidFields: []string{"spec.instance.interfaces[0]"},
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			vm := validVM.DeepCopy()
+			vm.Spec.Instance.Interfaces[0].InterfaceBindingMethod.SRIOV = &virtv1alpha1.InterfaceSRIOV{}
+			return vm
+		}(),
+		invalidFields: []string{"spec.instance.interfaces[0].sriov"},
+	}, {
+
 		vm: func() *virtv1alpha1.VirtualMachine {
 			vm := validVM.DeepCopy()
 			vm.Spec.Volumes[0].Name = ""
