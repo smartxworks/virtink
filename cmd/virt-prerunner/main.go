@@ -17,6 +17,7 @@ import (
 
 	"github.com/docker/libnetwork/resolvconf"
 	"github.com/docker/libnetwork/types"
+	netv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	"github.com/subgraph/libmacouflage"
 	"github.com/vishvananda/netlink"
 
@@ -65,6 +66,13 @@ func main() {
 		cloudHypervisorCmd = append(cloudHypervisorCmd, "--net")
 		for _, net := range vmConfig.Net {
 			cloudHypervisorCmd = append(cloudHypervisorCmd, fmt.Sprintf("id=%s,mac=%s,tap=%s", net.Id, net.Mac, net.Tap))
+		}
+	}
+
+	if len(vmConfig.Devices) > 0 {
+		cloudHypervisorCmd = append(cloudHypervisorCmd, "--device")
+		for _, device := range vmConfig.Devices {
+			cloudHypervisorCmd = append(cloudHypervisorCmd, fmt.Sprintf("id=%s,path=%s", device.Id, device.Path))
 		}
 	}
 
@@ -137,29 +145,48 @@ func buildVMConfig(ctx context.Context, vm *virtv1alpha1.VirtualMachine) (*cloud
 		}
 	}
 
+	networkStatusList := []netv1.NetworkStatus{}
+	if os.Getenv("NETWORK_STATUS") != "" {
+		if err := json.Unmarshal([]byte(os.Getenv("NETWORK_STATUS")), &networkStatusList); err != nil {
+			return nil, err
+		}
+	}
+
 	for _, iface := range vm.Spec.Instance.Interfaces {
 		for networkIndex, network := range vm.Spec.Networks {
-			if network.Name == iface.Name {
+			if network.Name != iface.Name {
+				continue
+			}
+
+			var linkName string
+			switch {
+			case network.Pod != nil:
+				linkName = "eth0"
+			case network.Multus != nil:
+				linkName = fmt.Sprintf("net%d", networkIndex)
+			default:
+				return nil, fmt.Errorf("invalid source of network %q", network.Name)
+			}
+
+			switch {
+			case iface.Bridge != nil:
 				netConfig := cloudhypervisor.NetConfig{
 					Id: iface.Name,
 				}
-
-				var linkName string
-				switch {
-				case network.Pod != nil:
-					linkName = "eth0"
-				case network.Multus != nil:
-					linkName = fmt.Sprintf("net%d", networkIndex)
-				default:
-					return nil, fmt.Errorf("invalid source of network %q", network.Name)
-				}
-
 				if err := setupBridgeNetwork(linkName, fmt.Sprintf("169.254.%d.1/30", 200+networkIndex), &netConfig); err != nil {
 					return nil, fmt.Errorf("setup bridge network: %s", err)
 				}
-
 				vmConfig.Net = append(vmConfig.Net, &netConfig)
-				break
+			case iface.SRIOV != nil:
+				for _, networkStatus := range networkStatusList {
+					if networkStatus.Interface == linkName && networkStatus.DeviceInfo != nil && networkStatus.DeviceInfo.Pci != nil {
+						sriovDeviceConfig := cloudhypervisor.DeviceConfig{
+							Id:   iface.Name,
+							Path: fmt.Sprintf("/sys/bus/pci/devices/%s", networkStatus.DeviceInfo.Pci.PciAddress),
+						}
+						vmConfig.Devices = append(vmConfig.Devices, &sriovDeviceConfig)
+					}
+				}
 			}
 		}
 	}

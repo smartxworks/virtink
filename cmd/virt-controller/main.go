@@ -4,6 +4,7 @@ import (
 	"flag"
 	"os"
 
+	netv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -27,6 +28,7 @@ func init() {
 
 	utilruntime.Must(virtv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(cdiv1beta1.AddToScheme(scheme))
+	utilruntime.Must(netv1.AddToScheme(scheme))
 }
 
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
