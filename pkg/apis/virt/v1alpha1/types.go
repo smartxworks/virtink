@@ -80,7 +80,19 @@ type Disk struct {
 }
 
 type Interface struct {
-	Name string `json:"name"`
+	Name                   string `json:"name"`
+	InterfaceBindingMethod `json:",inline"`
+}
+
+type InterfaceBindingMethod struct {
+	Bridge *InterfaceBridge `json:"bridge,omitempty"`
+	SRIOV  *InterfaceSRIOV  `json:"sriov,omitempty"`
+}
+
+type InterfaceBridge struct {
+}
+
+type InterfaceSRIOV struct {
 }
 
 type Volume struct {

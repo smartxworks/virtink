@@ -1,0 +1,64 @@
+apiVersion: virt.virtink.smartx.com/v1alpha1
+kind: VirtualMachine
+metadata:
+  name: ubuntu-sriov
+spec:
+  instance:
+    memory:
+      size: 1Gi
+    disks:
+      - name: ubuntu
+      - name: cloud-init
+    interfaces:
+      - name: pod
+      - name: sriov
+        sriov: {}
+  volumes:
+    - name: ubuntu
+      containerDisk:
+        image: smartxworks/virtink-container-disk-ubuntu
+    - name: cloud-init
+      cloudInit:
+        userData: |-
+          #cloud-config
+          password: password
+          chpasswd: { expire: False }
+          ssh_pwauth: True
+  networks:
+    - name: pod
+      pod: {}
+    - name: sriov
+      multus:
+        networkName: intel-10g-sriov-vfio
+---
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: intel-10g-sriov-vfio
+  annotations:
+    k8s.v1.cni.cncf.io/resourceName: intel.com/intel_10g_sriov_vfio
+spec:
+  config: |
+    {
+      "cniVersion": "0.3.1",
+      "type": "sriov"
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sriovdp-config
+  namespace: kube-system
+data:
+  config.json: |
+    {
+      "resourceList": [{
+        "resourceName": "intel_10g_sriov_vfio",
+        "resourcePrefix": "intel.com",
+        "selectors": {
+          "vendors": ["8086"],
+          "devices": ["1520"],
+          "drivers": ["vfio-pci"]
+        }
+      }]
+    }

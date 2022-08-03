@@ -886,8 +886,12 @@ spec:
                   interfaces:
                     items:
                       properties:
+                        bridge:
+                          type: object
                         name:
                           type: string
+                        sriov:
+                          type: object
                       required:
                       - name
                       type: object

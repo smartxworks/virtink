@@ -11,6 +11,7 @@ import (
 	netv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -39,6 +40,7 @@ type VMReconciler struct {
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch
 // +kubebuilder:rbac:groups=cdi.kubevirt.io,resources=datavolumes,verbs=get;list;watch
+// +kubebuilder:rbac:groups=k8s.cni.cncf.io,resources=network-attachment-definitions,verbs=get;list;watch
 
 func (r *VMReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var vm virtv1alpha1.VirtualMachine
@@ -433,6 +435,28 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 				Name:             network.Multus.NetworkName,
 				InterfaceRequest: fmt.Sprintf("net%d", i),
 			})
+
+			var nad netv1.NetworkAttachmentDefinition
+			nadKey := types.NamespacedName{
+				Name:      network.Multus.NetworkName,
+				Namespace: vm.Namespace,
+			}
+			if err := r.Client.Get(ctx, nadKey, &nad); err != nil {
+				return nil, fmt.Errorf("get NAD: %s", err)
+			}
+
+			resourceName := nad.Annotations["k8s.v1.cni.cncf.io/resourceName"]
+			if resourceName != "" {
+				incrementContainerResource(&vmPod.Spec.Containers[0], resourceName)
+			}
+			vmPod.Spec.Containers[0].Env = append(vmPod.Spec.Containers[0].Env, corev1.EnvVar{
+				Name: "NETWORK_STATUS",
+				ValueFrom: &corev1.EnvVarSource{
+					FieldRef: &corev1.ObjectFieldSelector{
+						FieldPath: fmt.Sprintf("metadata.annotations['%s']", netv1.NetworkStatusAnnot),
+					},
+				},
+			})
 		default:
 			// ignored
 		}
@@ -470,6 +494,22 @@ func (r *VMReconciler) gcVMPods(ctx context.Context, vm *virtv1alpha1.VirtualMac
 		r.Recorder.Eventf(vm, corev1.EventTypeNormal, "DeletedVMPod", fmt.Sprintf("Deleted VM Pod %q", vmPod.Name))
 	}
 	return nil
+}
+
+func incrementContainerResource(container *corev1.Container, resourceName string) {
+	if container.Resources.Requests == nil {
+		container.Resources.Requests = corev1.ResourceList{}
+	}
+	request := container.Resources.Requests[corev1.ResourceName(resourceName)]
+	request = resource.MustParse(strconv.FormatInt(request.Value()+1, 10))
+	container.Resources.Requests[corev1.ResourceName(resourceName)] = request
+
+	if container.Resources.Limits == nil {
+		container.Resources.Limits = corev1.ResourceList{}
+	}
+	limit := container.Resources.Limits[corev1.ResourceName(resourceName)]
+	limit = resource.MustParse(strconv.FormatInt(limit.Value()+1, 10))
+	container.Resources.Limits[corev1.ResourceName(resourceName)] = limit
 }
 
 func (r *VMReconciler) SetupWithManager(mgr ctrl.Manager) error {
