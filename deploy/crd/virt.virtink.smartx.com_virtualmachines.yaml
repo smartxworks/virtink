@@ -883,6 +883,20 @@ spec:
                       - name
                       type: object
                     type: array
+                  gpus:
+                    items:
+                      properties:
+                        name:
+                          type: string
+                        resourceName:
+                          type: string
+                        resourcePCIAddressEnvVarName:
+                          type: string
+                      required:
+                      - name
+                      - resourceName
+                      type: object
+                    type: array
                   interfaces:
                     items:
                       properties:

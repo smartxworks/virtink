@@ -57,6 +57,7 @@ type Instance struct {
 	Kernel     *Kernel     `json:"kernel,omitempty"`
 	Disks      []Disk      `json:"disks,omitempty"`
 	Interfaces []Interface `json:"interfaces,omitempty"`
+	GPUs       []GPU       `json:"gpus,omitempty"`
 }
 
 type CPU struct {
@@ -93,6 +94,12 @@ type InterfaceBridge struct {
 }
 
 type InterfaceSRIOV struct {
+}
+
+type GPU struct {
+	Name                         string `json:"name"`
+	ResourceName                 string `json:"resourceName"`
+	ResourcePCIAddressEnvVarName string `json:"resourcePCIAddressEnvVarName,omitempty"`
 }
 
 type Volume struct {

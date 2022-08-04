@@ -470,6 +470,10 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 		vmPod.Annotations["k8s.v1.cni.cncf.io/networks"] = string(networksJSON)
 	}
 
+	for _, gpu := range vm.Spec.Instance.GPUs {
+		incrementContainerResource(&vmPod.Spec.Containers[0], gpu.ResourceName)
+	}
+
 	return &vmPod, nil
 }
 
