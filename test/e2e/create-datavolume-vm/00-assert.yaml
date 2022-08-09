@@ -1,0 +1,6 @@
+apiVersion: virt.virtink.smartx.com/v1alpha1
+kind: VirtualMachine
+metadata:
+  name: ubuntu-datavolume
+status:
+  phase: Running
