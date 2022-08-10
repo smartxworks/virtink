@@ -135,13 +135,13 @@ You can also `Shutdown`, `Reset`, `Reboot` or `Pause` a running VM, or `Resume` 
 - [x] VM lifecycle management
 - [x] Container disks
 - [x] Direct kernel boot with container rootfs
-- [x] Pod network
-- [x] Multus CNI networks
+- [x] [Pod network](docs/interfaces_and_networks.md#pod-network)
+- [x] [Multus CNI networks](docs/interfaces_and_networks.md#multus-network)
 - [x] Persistent volumes
 - [x] CDI data volumes
 - [x] ARM64 support
 - [ ] VM live migration
-- [ ] SR-IOV NIC passthrough
+- [ ] [SR-IOV NIC passthrough](docs/interfaces_and_networks.md#sriov-mode)
 - [ ] GPU passthrough
 - [ ] Dedicated vCPU allocation
 - [ ] VM devices hot-plug
