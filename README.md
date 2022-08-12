@@ -133,12 +133,12 @@ You can also `Shutdown`, `Reset`, `Reboot` or `Pause` a running VM, or `Resume` 
 ## Roadmap
 
 - [x] VM lifecycle management
-- [x] Container disks
-- [x] Direct kernel boot with container rootfs
+- [x] [Container disks](docs/disks_and_volumes.md#containerdisk-volume)
+- [x] Direct kernel boot with [container rootfs](docs/disks_and_volumes.md#containerrootfs-volume)
 - [x] [Pod network](docs/interfaces_and_networks.md#pod-network)
 - [x] [Multus CNI networks](docs/interfaces_and_networks.md#multus-network)
-- [x] Persistent volumes
-- [x] CDI data volumes
+- [x] [Persistent volumes](docs/disks_and_volumes.md#persistentvolumeclaim-volume)
+- [x] [CDI data volumes](docs/disks_and_volumes.md#datavolume-volume)
 - [x] ARM64 support
 - [ ] VM live migration
 - [ ] [SR-IOV NIC passthrough](docs/interfaces_and_networks.md#sriov-mode)
