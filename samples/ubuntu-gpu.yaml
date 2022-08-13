@@ -1,0 +1,30 @@
+apiVersion: virt.virtink.smartx.com/v1alpha1
+kind: VirtualMachine
+metadata:
+  name: ubuntu-gpu
+spec:
+  instance:
+    memory:
+      size: 1Gi
+    disks:
+      - name: ubuntu
+      - name: cloud-init
+    interfaces:
+      - name: pod
+    gpus:
+      - name: gpu1
+        resourceName: nvidia.com/XXXX #TODO
+  volumes:
+    - name: ubuntu
+      containerDisk:
+        image: smartxworks/virtink-container-disk-ubuntu
+    - name: cloud-init
+      cloudInit:
+        userData: |-
+          #cloud-config
+          password: password
+          chpasswd: { expire: False }
+          ssh_pwauth: True
+  networks:
+    - name: pod
+      pod: {}

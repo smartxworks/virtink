@@ -222,6 +222,26 @@ func buildVMConfig(ctx context.Context, vm *virtv1alpha1.VirtualMachine) (*cloud
 		}
 	}
 
+	var resourceIndexes = map[string]int{}
+	getResourceIndex := func(resourceName string) int {
+		index := resourceIndexes[resourceName]
+		resourceIndexes[resourceName] = index + 1
+		return index
+	}
+
+	for _, gpu := range vm.Spec.Instance.GPUs {
+		pciAddresses := strings.Split(os.Getenv(gpu.ResourcePCIAddressEnvVarName), ",")
+		index := getResourceIndex(gpu.ResourceName)
+		if index >= len(pciAddresses) {
+			return nil, fmt.Errorf("failed to get PCI address for %s", gpu.Name)
+		}
+		gpuDeviceConfig := cloudhypervisor.DeviceConfig{
+			Id:   gpu.Name,
+			Path: fmt.Sprintf("/sys/bus/pci/devices/%s", pciAddresses[index]),
+		}
+		vmConfig.Devices = append(vmConfig.Devices, &gpuDeviceConfig)
+	}
+
 	return &vmConfig, nil
 }
 

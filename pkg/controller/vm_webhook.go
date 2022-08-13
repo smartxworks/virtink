@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 
 	"github.com/r3labs/diff/v2"
 	admissionv1 "k8s.io/api/admission/v1"
@@ -82,6 +83,16 @@ func MutateVM(ctx context.Context, vm *virtv1alpha1.VirtualMachine, oldVM *virtv
 		if vm.Spec.Instance.Interfaces[i].Bridge == nil && vm.Spec.Instance.Interfaces[i].SRIOV == nil {
 			vm.Spec.Instance.Interfaces[i].InterfaceBindingMethod = virtv1alpha1.InterfaceBindingMethod{
 				Bridge: &virtv1alpha1.InterfaceBridge{},
+			}
+		}
+	}
+
+	for i := range vm.Spec.Instance.GPUs {
+		if vm.Spec.Instance.GPUs[i].ResourcePCIAddressEnvVarName == "" {
+			if strings.Contains(vm.Spec.Instance.GPUs[i].ResourceName, "nvidia.com/") {
+				// https://github.com/NVIDIA/kubevirt-gpu-device-plugin/blob/f2f291647189859946a4fbb61d4e1812d86861f7/pkg/device_plugin/generic_device_plugin.go#L48
+				deviceName := strings.TrimPrefix(vm.Spec.Instance.GPUs[i].ResourceName, "nvidia.com/")
+				vm.Spec.Instance.GPUs[i].ResourcePCIAddressEnvVarName = fmt.Sprintf("PCI_RESOURCE_NVIDIA_COM_%s", deviceName)
 			}
 		}
 	}
@@ -242,6 +253,16 @@ func ValidateInstance(ctx context.Context, instance *virtv1alpha1.Instance, fiel
 		errs = append(errs, ValidateInterface(ctx, &iface, fieldPath)...)
 	}
 
+	gpuNames := map[string]struct{}{}
+	for i, gpu := range instance.GPUs {
+		fieldPath := fieldPath.Child("gpus").Index(i)
+		if _, ok := gpuNames[gpu.Name]; ok {
+			errs = append(errs, field.Duplicate(fieldPath.Child("name"), gpu.Name))
+		}
+		gpuNames[gpu.Name] = struct{}{}
+		errs = append(errs, ValidateGPU(ctx, &gpu, fieldPath)...)
+	}
+
 	return errs
 }
 
@@ -364,6 +385,19 @@ func ValidateCIDR(cidr string, capacity int, fieldPath *field.Path) field.ErrorL
 		if ones, bits := subnet.Mask.Size(); (1 << (bits - ones)) < capacity {
 			errs = append(errs, field.Invalid(fieldPath, cidr, fmt.Sprintf("must contain at least %d IPs", capacity)))
 		}
+	}
+	return errs
+}
+
+func ValidateGPU(ctx context.Context, gpu *virtv1alpha1.GPU, fieldPath *field.Path) field.ErrorList {
+	var errs field.ErrorList
+	if gpu == nil {
+		errs = append(errs, field.Required(fieldPath, ""))
+		return errs
+	}
+
+	if gpu.ResourcePCIAddressEnvVarName == "" {
+		errs = append(errs, field.Required(fieldPath.Child("resourcePCIAddressEnvVarName"), ""))
 	}
 	return errs
 }
