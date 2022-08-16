@@ -215,6 +215,33 @@ func TestValidateVM(t *testing.T) {
 	}, {
 		vm: func() *virtv1alpha1.VirtualMachine {
 			vm := validVM.DeepCopy()
+			vm.Spec.Instance.Interfaces[0].InterfaceBindingMethod.Masquerade = &virtv1alpha1.InterfaceMasquerade{}
+			return vm
+		}(),
+		invalidFields: []string{"spec.instance.interfaces[0].masquerade"},
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			vm := validVM.DeepCopy()
+			vm.Spec.Instance.Interfaces[0].InterfaceBindingMethod.Bridge = nil
+			vm.Spec.Instance.Interfaces[0].InterfaceBindingMethod.Masquerade = &virtv1alpha1.InterfaceMasquerade{
+				CIDR: "",
+			}
+			return vm
+		}(),
+		invalidFields: []string{"spec.instance.interfaces[0].masquerade.cidr"},
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			vm := validVM.DeepCopy()
+			vm.Spec.Instance.Interfaces[0].InterfaceBindingMethod.Bridge = nil
+			vm.Spec.Instance.Interfaces[0].InterfaceBindingMethod.Masquerade = &virtv1alpha1.InterfaceMasquerade{
+				CIDR: "10.0.2.0/31",
+			}
+			return vm
+		}(),
+		invalidFields: []string{"spec.instance.interfaces[0].masquerade.cidr"},
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			vm := validVM.DeepCopy()
 			vm.Spec.Instance.Interfaces[0].InterfaceBindingMethod.SRIOV = &virtv1alpha1.InterfaceSRIOV{}
 			return vm
 		}(),
@@ -269,5 +296,71 @@ func TestValidateVM(t *testing.T) {
 		for _, err := range errs {
 			assert.Contains(t, tc.invalidFields, err.Field)
 		}
+	}
+}
+
+func TestMutateVM(t *testing.T) {
+	oldVM := &virtv1alpha1.VirtualMachine{
+		Spec: virtv1alpha1.VirtualMachineSpec{
+			Resources: corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceMemory: resource.MustParse("1Gi"),
+				},
+			},
+			Instance: virtv1alpha1.Instance{
+				Interfaces: []virtv1alpha1.Interface{{
+					Name: "pod",
+				}},
+			},
+		},
+	}
+
+	tests := []struct {
+		vm     *virtv1alpha1.VirtualMachine
+		assert func(vm *virtv1alpha1.VirtualMachine)
+	}{{
+		vm: func() *virtv1alpha1.VirtualMachine {
+			return oldVM.DeepCopy()
+		}(),
+		assert: func(vm *virtv1alpha1.VirtualMachine) {
+			assert.Equal(t, uint32(1), vm.Spec.Instance.CPU.Sockets)
+		},
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			return oldVM.DeepCopy()
+		}(),
+		assert: func(vm *virtv1alpha1.VirtualMachine) {
+			assert.Equal(t, uint32(1), vm.Spec.Instance.CPU.CoresPerSocket)
+		},
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			return oldVM.DeepCopy()
+		}(),
+		assert: func(vm *virtv1alpha1.VirtualMachine) {
+			assert.Equal(t, "1Gi", vm.Spec.Instance.Memory.Size.String())
+		},
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			return oldVM.DeepCopy()
+		}(),
+		assert: func(vm *virtv1alpha1.VirtualMachine) {
+			assert.NotNil(t, vm.Spec.Instance.Interfaces[0].Bridge)
+		},
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			vm := oldVM.DeepCopy()
+			vm.Spec.Instance.Interfaces[0].InterfaceBindingMethod = virtv1alpha1.InterfaceBindingMethod{
+				Masquerade: &virtv1alpha1.InterfaceMasquerade{},
+			}
+			return vm
+		}(),
+		assert: func(vm *virtv1alpha1.VirtualMachine) {
+			assert.Equal(t, vm.Spec.Instance.Interfaces[0].Masquerade.CIDR, "10.0.2.0/30")
+		},
+	}}
+	for _, tc := range tests {
+		err := MutateVM(context.Background(), tc.vm, nil)
+		assert.Nil(t, err)
+		tc.assert(tc.vm)
 	}
 }

@@ -86,11 +86,16 @@ type Interface struct {
 }
 
 type InterfaceBindingMethod struct {
-	Bridge *InterfaceBridge `json:"bridge,omitempty"`
-	SRIOV  *InterfaceSRIOV  `json:"sriov,omitempty"`
+	Bridge     *InterfaceBridge     `json:"bridge,omitempty"`
+	Masquerade *InterfaceMasquerade `json:"masquerade,omitempty"`
+	SRIOV      *InterfaceSRIOV      `json:"sriov,omitempty"`
 }
 
 type InterfaceBridge struct {
+}
+
+type InterfaceMasquerade struct {
+	CIDR string `json:"cidr,omitempty"`
 }
 
 type InterfaceSRIOV struct {

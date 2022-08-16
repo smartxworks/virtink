@@ -890,6 +890,11 @@ spec:
                       properties:
                         bridge:
                           type: object
+                        masquerade:
+                          properties:
+                            cidr:
+                              type: string
+                          type: object
                         name:
                           type: string
                         sriov:
