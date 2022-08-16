@@ -208,6 +208,14 @@ func buildVMConfig(ctx context.Context, vm *virtv1alpha1.VirtualMachine) (*cloud
 					return nil, fmt.Errorf("setup bridge network: %s", err)
 				}
 				vmConfig.Net = append(vmConfig.Net, &netConfig)
+			case iface.Masquerade != nil:
+				netConfig := cloudhypervisor.NetConfig{
+					Id: iface.Name,
+				}
+				if err := setupMasqueradeNetwork(linkName, iface.Masquerade.CIDR, &netConfig); err != nil {
+					return nil, fmt.Errorf("setup masquerade network: %s", err)
+				}
+				vmConfig.Net = append(vmConfig.Net, &netConfig)
 			case iface.SRIOV != nil:
 				for _, networkStatus := range networkStatusList {
 					if networkStatus.Interface == linkName && networkStatus.DeviceInfo != nil && networkStatus.DeviceInfo.Pci != nil {
@@ -326,6 +334,60 @@ func setupBridgeNetwork(linkName string, cidr string, netConfig *cloudhypervisor
 	return nil
 }
 
+func setupMasqueradeNetwork(linkName string, cidr string, netConfig *cloudhypervisor.NetConfig) error {
+	_, subnet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return fmt.Errorf("parse CIDR: %s", err)
+	}
+
+	bridgeIP, err := nextIP(subnet.IP, subnet)
+	if err != nil {
+		return fmt.Errorf("generate bridge IP: %s", err)
+	}
+	bridgeIPNet := net.IPNet{
+		IP:   bridgeIP,
+		Mask: subnet.Mask,
+	}
+
+	bridgeName := fmt.Sprintf("br-%s", linkName)
+	bridge, err := createBridge(bridgeName, &bridgeIPNet)
+	if err != nil {
+		return fmt.Errorf("create bridge: %s", err)
+	}
+
+	vmIP, err := nextIP(bridgeIP, subnet)
+	if err != nil {
+		return fmt.Errorf("generate vm IP: %s", err)
+	}
+	vmIPNet := &net.IPNet{
+		IP:   vmIP,
+		Mask: subnet.Mask,
+	}
+
+	if _, err := executeCommand("sysctl", "-w", "net.ipv4.ip_forward=1"); err != nil {
+		return fmt.Errorf("enable net.ipv4.ip_forward: %s", err)
+	}
+	if _, err := executeCommand("iptables", "-t", "nat", "-A", "POSTROUTING", "-o", linkName, "-j", "MASQUERADE"); err != nil {
+		return fmt.Errorf("add masquerade rule: %s", err)
+	}
+	if _, err := executeCommand("iptables", "-t", "nat", "-A", "PREROUTING", "-i", linkName, "-j", "DNAT", "--to-destination", vmIP.String()); err != nil {
+		return fmt.Errorf("add prerouting rule: %s", err)
+	}
+
+	tapName := fmt.Sprintf("tap-%s", linkName)
+	tap, err := createTap(bridge, tapName)
+	if err != nil {
+		return fmt.Errorf("create tap: %s", err)
+	}
+	netConfig.Tap = tapName
+	netConfig.Mac = tap.Attrs().HardwareAddr.String()
+
+	if err := startDHCPServer(bridgeName, tap.Attrs().HardwareAddr, vmIPNet, bridgeIP); err != nil {
+		return fmt.Errorf("start DHCP server: %s", err)
+	}
+	return nil
+}
+
 func nextIP(ip net.IP, subnet *net.IPNet) (net.IP, error) {
 	nextIP := make(net.IP, len(ip))
 	copy(nextIP, ip)
@@ -380,7 +442,12 @@ func createTap(bridge netlink.Link, tapName string) (netlink.Link, error) {
 	if err := netlink.LinkSetUp(tap); err != nil {
 		return nil, fmt.Errorf("up tap: %s", err)
 	}
-	return tap, nil
+
+	createdTap, err := netlink.LinkByName(tapName)
+	if err != nil {
+		return nil, fmt.Errorf("get tap: %s", err)
+	}
+	return createdTap, nil
 }
 
 //go:embed dnsmasq.conf

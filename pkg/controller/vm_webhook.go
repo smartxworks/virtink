@@ -79,9 +79,15 @@ func MutateVM(ctx context.Context, vm *virtv1alpha1.VirtualMachine, oldVM *virtv
 	}
 
 	for i := range vm.Spec.Instance.Interfaces {
-		if vm.Spec.Instance.Interfaces[i].Bridge == nil && vm.Spec.Instance.Interfaces[i].SRIOV == nil {
+		if vm.Spec.Instance.Interfaces[i].Bridge == nil && vm.Spec.Instance.Interfaces[i].Masquerade == nil && vm.Spec.Instance.Interfaces[i].SRIOV == nil {
 			vm.Spec.Instance.Interfaces[i].InterfaceBindingMethod = virtv1alpha1.InterfaceBindingMethod{
 				Bridge: &virtv1alpha1.InterfaceBridge{},
+			}
+		}
+
+		if vm.Spec.Instance.Interfaces[i].Masquerade != nil {
+			if vm.Spec.Instance.Interfaces[i].Masquerade.CIDR == "" {
+				vm.Spec.Instance.Interfaces[i].Masquerade.CIDR = "10.0.2.0/30"
 			}
 		}
 	}
@@ -333,6 +339,14 @@ func ValidateInterfaceBindingMethod(ctx context.Context, bindingMethod *virtv1al
 		cnt++
 		if cnt > 1 {
 			errs = append(errs, field.Forbidden(fieldPath.Child("bridge"), "may not specify more than 1 binding method"))
+		}
+	}
+	if bindingMethod.Masquerade != nil {
+		cnt++
+		if cnt > 1 {
+			errs = append(errs, field.Forbidden(fieldPath.Child("masquerade"), "may not specify more than 1 binding method"))
+		} else {
+			errs = append(errs, ValidateCIDR(bindingMethod.Masquerade.CIDR, 4, fieldPath.Child("masquerade").Child("cidr"))...)
 		}
 	}
 	if bindingMethod.SRIOV != nil {
