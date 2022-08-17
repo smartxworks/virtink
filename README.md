@@ -143,7 +143,7 @@ You can also `Shutdown`, `Reset`, `Reboot` or `Pause` a running VM, or `Resume` 
 - [ ] VM live migration
 - [x] [SR-IOV NIC passthrough](docs/interfaces_and_networks.md#sriov-mode)
 - [ ] GPU passthrough
-- [x] Dedicated vCPU allocation
+- [x] [Dedicated CPU placement](docs/dedicated_cpu_placement.md)
 - [ ] VM devices hot-plug
 
 ## License
