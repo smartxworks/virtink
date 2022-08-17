@@ -134,7 +134,7 @@ You can also `Shutdown`, `Reset`, `Reboot` or `Pause` a running VM, or `Resume` 
 
 - [x] VM lifecycle management
 - [x] [Container disks](docs/disks_and_volumes.md#containerdisk-volume)
-- [x] Direct kernel boot with [container rootfs](docs/disks_and_volumes.md#containerrootfs-volume)
+- [x] [Direct kernel boot](docs/direct_kernel_boot.md) with [container rootfs](docs/disks_and_volumes.md#containerrootfs-volume)
 - [x] [Pod network](docs/interfaces_and_networks.md#pod-network)
 - [x] [Multus CNI networks](docs/interfaces_and_networks.md#multus-network)
 - [x] [Persistent volumes](docs/disks_and_volumes.md#persistentvolumeclaim-volume)

@@ -76,7 +76,7 @@ The `containerRootfs` feature provides the ability to store and distribute VM ro
 
 Unlike `containerDisk`s, which require using of a raw or QCOW2 image. A `containerRootfs` volume can be built solely with Docker or other container image building tools. The rootfs on the container image will be used directly as the VM's rootfs, with no further requirements of disk partitions or file system formatting.
 
-However, since normally a `containerRootfs` is not bootable itself, it's mostly used with Virtink's direct kernel boot feature. Below is an example that directly boots a VM with a given kernel and a `containerRootfs` disk:
+However, since normally a `containerRootfs` is not bootable itself, it's mostly used with Virtink's [direct kernel boot](direct_kernel_boot.md) feature. Below is an example that directly boots a VM with a given kernel and a `containerRootfs` disk:
 
 ```yaml
 apiVersion: virt.virtink.smartx.com/v1alpha1
