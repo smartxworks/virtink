@@ -1,0 +1,59 @@
+{{- $service := .Values.virtController }}
+{{- $image := merge $service.image .Values.image }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $service.name }}
+  labels:
+    {{- include "virtink.labels" . | nindent 4 }}
+    app.kubernetes.io/component: {{ $service.name }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "virtink.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: {{ $service.name }}
+  template:
+    metadata:
+      {{- with $service.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "virtink.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: {{ $service.name }}
+    spec:
+      serviceAccountName: {{ $service.name }}
+      securityContext:
+        {{- toYaml $service.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ $service.name }}
+          image: {{ include "virtink.image" $image }}
+          imagePullPolicy: {{ $image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          args:
+            - --zap-time-encoding=iso8601
+            - --leader-elect
+          volumeMounts:
+            - name: cert
+              mountPath: /tmp/k8s-webhook-server/serving-certs
+              readOnly: true
+          resources:
+            {{- toYaml .Values.virtController.resources | nindent 12 }}
+      volumes:
+        - name: cert
+          secret:
+            secretName: {{ $service.name }}-cert
+            defaultMode: 0644
+      {{- with .Values.virtController.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.virtController.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.virtController.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

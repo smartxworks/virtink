@@ -1,0 +1,57 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: {{ include "virtink.fullname" . }}
+  annotations:
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ .Values.virtController.name }}-cert
+webhooks:
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: {{ .Values.virtController.name }}
+      namespace: {{ .Release.Namespace }}
+      path: /mutate-v1alpha1-virtualmachine
+  failurePolicy: Fail
+  name: mutate.virtualmachine.v1alpha1.virt.virtink.smartx.com
+  rules:
+  - apiGroups:
+    - virt.virtink.smartx.com
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - virtualmachines
+  sideEffects: None
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: {{ include "virtink.fullname" . }}
+  annotations:
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ .Values.virtController.name }}-cert
+webhooks:
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: {{ .Values.virtController.name }}
+      namespace: {{ .Release.Namespace }}
+      path: /validate-v1alpha1-virtualmachine
+  failurePolicy: Fail
+  name: validate.virtualmachine.v1alpha1.virt.virtink.smartx.com
+  rules:
+  - apiGroups:
+    - virt.virtink.smartx.com
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - virtualmachines
+  sideEffects: None
