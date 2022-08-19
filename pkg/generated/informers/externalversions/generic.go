@@ -39,6 +39,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 	// Group=virt.virtink.smartx.com, Version=v1alpha1
 	case v1alpha1.SchemeGroupVersion.WithResource("virtualmachines"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Virt().V1alpha1().VirtualMachines().Informer()}, nil
+	case v1alpha1.SchemeGroupVersion.WithResource("virtualmachinemigrations"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Virt().V1alpha1().VirtualMachineMigrations().Informer()}, nil
 
 	}
 

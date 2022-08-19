@@ -13,6 +13,7 @@ import (
 
 	virtv1alpha1 "github.com/smartxworks/virtink/pkg/apis/virt/v1alpha1"
 	"github.com/smartxworks/virtink/pkg/daemon"
+	"github.com/smartxworks/virtink/pkg/daemon/tcpproxy"
 )
 
 var (
@@ -50,10 +51,12 @@ func main() {
 	}
 
 	if err = (&daemon.VMReconciler{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("virt-daemon"),
-		NodeName: os.Getenv("NODE_NAME"),
+		Client:        mgr.GetClient(),
+		Scheme:        mgr.GetScheme(),
+		Recorder:      mgr.GetEventRecorderFor("virt-daemon"),
+		NodeName:      os.Getenv("NODE_NAME"),
+		NodeIP:        os.Getenv("NODE_IP"),
+		RelayProvider: tcpproxy.NewRelayProvider(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "VM")
 		os.Exit(1)

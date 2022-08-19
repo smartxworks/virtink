@@ -162,11 +162,13 @@ type MultusNetworkSource struct {
 
 // VirtualMachineStatus is the status for a VirtualMachine resource
 type VirtualMachineStatus struct {
-	Phase       VirtualMachinePhase       `json:"phase,omitempty"`
-	VMPodName   string                    `json:"vmPodName,omitempty"`
-	VMPodUID    types.UID                 `json:"vmPodUID,omitempty"`
-	NodeName    string                    `json:"nodeName,omitempty"`
-	PowerAction VirtualMachinePowerAction `json:"powerAction,omitempty"`
+	Phase       VirtualMachinePhase            `json:"phase,omitempty"`
+	VMPodName   string                         `json:"vmPodName,omitempty"`
+	VMPodUID    types.UID                      `json:"vmPodUID,omitempty"`
+	NodeName    string                         `json:"nodeName,omitempty"`
+	PowerAction VirtualMachinePowerAction      `json:"powerAction,omitempty"`
+	Migration   *VirtualMachineStatusMigration `json:"migration,omitempty"`
+	Conditions  []metav1.Condition             `json:"conditions,omitempty"`
 }
 
 // +kubebuilder:validation:Enum=Pending;Scheduling;Scheduled;Running;Succeeded;Failed;Unknown
@@ -197,6 +199,22 @@ const (
 	VirtualMachineResume   VirtualMachinePowerAction = "Resume"
 )
 
+type VirtualMachineStatusMigration struct {
+	UID             types.UID                    `json:"uid,omitempty"`
+	Phase           VirtualMachineMigrationPhase `json:"phase,omitempty"`
+	TargetNodeName  string                       `json:"targetNodeName,omitempty"`
+	TargetNodeIP    string                       `json:"targetNodeIP,omitempty"`
+	TargetNodePort  int                          `json:"targetNodePort,omitempty"`
+	TargetVMPodName string                       `json:"targetVMPodName,omitempty"`
+	TargetVMPodUID  types.UID                    `json:"targetVMPodUID,omitempty"`
+}
+
+type VirtualMachineConditionType string
+
+const (
+	VirtualMachineMigratable VirtualMachineConditionType = "Migratable"
+)
+
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // VirtualMachineList is a list of VirtualMachine resources
@@ -205,4 +223,55 @@ type VirtualMachineList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 
 	Items []VirtualMachine `json:"items"`
+}
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:subresource:status
+// +kubebuilder:resource:shortName=vmm
+// +kubebuilder:printcolumn:name="VM",type=string,JSONPath=`.spec.vmName`
+// +kubebuilder:printcolumn:name="Source",type=string,JSONPath=`.status.sourceNodeName`
+// +kubebuilder:printcolumn:name="Target",type=string,JSONPath=`.status.targetNodeName`
+// +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.phase`
+
+type VirtualMachineMigration struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   VirtualMachineMigrationSpec   `json:"spec,omitempty"`
+	Status VirtualMachineMigrationStatus `json:"status,omitempty"`
+}
+
+type VirtualMachineMigrationSpec struct {
+	VMName string `json:"vmName"`
+}
+
+type VirtualMachineMigrationStatus struct {
+	Phase          VirtualMachineMigrationPhase `json:"phase,omitempty"`
+	SourceNodeName string                       `json:"sourceNodeName,omitempty"`
+	TargetNodeName string                       `json:"targetNodeName,omitempty"`
+}
+
+// +kubebuilder:validation:Enum=Pending;Scheduling;Scheduled;TargetReady;Running;Sent;Succeeded;Failed
+
+type VirtualMachineMigrationPhase string
+
+const (
+	VirtualMachineMigrationPending     VirtualMachineMigrationPhase = "Pending"
+	VirtualMachineMigrationScheduling  VirtualMachineMigrationPhase = "Scheduling"
+	VirtualMachineMigrationScheduled   VirtualMachineMigrationPhase = "Scheduled"
+	VirtualMachineMigrationTargetReady VirtualMachineMigrationPhase = "TargetReady"
+	VirtualMachineMigrationRunning     VirtualMachineMigrationPhase = "Running"
+	VirtualMachineMigrationSent        VirtualMachineMigrationPhase = "Sent"
+	VirtualMachineMigrationSucceeded   VirtualMachineMigrationPhase = "Succeeded"
+	VirtualMachineMigrationFailed      VirtualMachineMigrationPhase = "Failed"
+)
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+type VirtualMachineMigrationList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+
+	Items []VirtualMachineMigration `json:"items"`
 }

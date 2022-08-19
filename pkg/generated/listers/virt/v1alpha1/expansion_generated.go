@@ -9,3 +9,11 @@ type VirtualMachineListerExpansion interface{}
 // VirtualMachineNamespaceListerExpansion allows custom methods to be added to
 // VirtualMachineNamespaceLister.
 type VirtualMachineNamespaceListerExpansion interface{}
+
+// VirtualMachineMigrationListerExpansion allows custom methods to be added to
+// VirtualMachineMigrationLister.
+type VirtualMachineMigrationListerExpansion interface{}
+
+// VirtualMachineMigrationNamespaceListerExpansion allows custom methods to be added to
+// VirtualMachineMigrationNamespaceLister.
+type VirtualMachineMigrationNamespaceListerExpansion interface{}

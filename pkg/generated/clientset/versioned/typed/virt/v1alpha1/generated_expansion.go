@@ -3,3 +3,5 @@
 package v1alpha1
 
 type VirtualMachineExpansion interface{}
+
+type VirtualMachineMigrationExpansion interface{}
