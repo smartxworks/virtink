@@ -3,3 +3,5 @@ resources:
   - rolebinding.yaml
   - role.yaml
   - sa.yaml
+  - cert.yaml
+  - cert-issuer.yaml

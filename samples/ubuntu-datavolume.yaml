@@ -11,6 +11,7 @@ spec:
       - name: cloud-init
     interfaces:
       - name: pod
+        masquerade: {}
   volumes:
     - name: ubuntu
       dataVolume:
@@ -33,7 +34,7 @@ metadata:
 spec:
   source:
       http:
-        url: https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img 
+        url: https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img
   pvc:
     accessModes:
       - ReadWriteOnce

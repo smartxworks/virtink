@@ -11,6 +11,7 @@ import (
 	netv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -79,7 +80,7 @@ func (r *VMReconciler) reconcile(ctx context.Context, vm *virtv1alpha1.VirtualMa
 	case virtv1alpha1.VirtualMachinePending:
 		vm.Status.VMPodName = names.SimpleNameGenerator.GenerateName(fmt.Sprintf("vm-%s-", vm.Name))
 		vm.Status.Phase = virtv1alpha1.VirtualMachineScheduling
-	case virtv1alpha1.VirtualMachineScheduling, virtv1alpha1.VirtualMachineScheduled, virtv1alpha1.VirtualMachineRunning:
+	case virtv1alpha1.VirtualMachineScheduling, virtv1alpha1.VirtualMachineScheduled:
 		var vmPod corev1.Pod
 		vmPodKey := types.NamespacedName{
 			Name:      vm.Status.VMPodName,
@@ -135,6 +136,96 @@ func (r *VMReconciler) reconcile(ctx context.Context, vm *virtv1alpha1.VirtualMa
 				// ignored
 			}
 		}
+	case virtv1alpha1.VirtualMachineRunning:
+		var vmPod corev1.Pod
+		vmPodKey := types.NamespacedName{
+			Name:      vm.Status.VMPodName,
+			Namespace: vm.Namespace,
+		}
+		vmPodNotFound := false
+		if err := r.Get(ctx, vmPodKey, &vmPod); err != nil {
+			if apierrors.IsNotFound(err) {
+				vmPodNotFound = true
+			} else {
+				return fmt.Errorf("get VM Pod: %s", err)
+			}
+		}
+
+		if !vmPodNotFound && !metav1.IsControlledBy(&vmPod, vm) {
+			vmPodNotFound = true
+		}
+		switch {
+		case vmPodNotFound:
+			vm.Status.Phase = virtv1alpha1.VirtualMachineFailed
+		case vmPod.Status.Phase == corev1.PodSucceeded:
+			if vm.Status.Migration == nil {
+				vm.Status.Phase = virtv1alpha1.VirtualMachineSucceeded
+			}
+		case vmPod.Status.Phase == corev1.PodFailed:
+			vm.Status.Phase = virtv1alpha1.VirtualMachineFailed
+		case vmPod.Status.Phase == corev1.PodUnknown:
+			vm.Status.Phase = virtv1alpha1.VirtualMachineUnknown
+		}
+		if vm.Status.Phase != virtv1alpha1.VirtualMachineRunning {
+			return nil
+		}
+
+		if err := r.reconcileVMMigratableConditions(ctx, vm); err != nil {
+			return err
+		}
+
+		if vm.Status.Migration != nil {
+			switch vm.Status.Migration.Phase {
+			case "", virtv1alpha1.VirtualMachineMigrationPending:
+				vm.Status.Migration.TargetVMPodName = names.SimpleNameGenerator.GenerateName(fmt.Sprintf("vm-%s-", vm.Name))
+				vm.Status.Migration.Phase = virtv1alpha1.VirtualMachineMigrationScheduling
+			case virtv1alpha1.VirtualMachineMigrationScheduling:
+				var targetVMPod corev1.Pod
+				targetVMPodKey := types.NamespacedName{
+					Name:      vm.Status.Migration.TargetVMPodName,
+					Namespace: vm.Namespace,
+				}
+				targetVMPodNotFound := false
+				if err := r.Get(ctx, targetVMPodKey, &targetVMPod); err != nil {
+					if apierrors.IsNotFound(err) {
+						vmPodNotFound = true
+					} else {
+						return fmt.Errorf("get target VM Pod: %s", err)
+					}
+				}
+
+				if !targetVMPodNotFound && !metav1.IsControlledBy(&targetVMPod, vm) {
+					targetVMPodNotFound = true
+				}
+
+				if targetVMPodNotFound {
+					targetVMPod, err := r.buildTargetVMPod(ctx, vm)
+					if err != nil {
+						return fmt.Errorf("build target VM Pod: %s", err)
+					}
+
+					targetVMPod.Name = targetVMPodKey.Name
+					targetVMPod.Namespace = targetVMPodKey.Namespace
+					if err := controllerutil.SetControllerReference(vm, targetVMPod, r.Scheme); err != nil {
+						return fmt.Errorf("set target VM Pod controller reference: %s", err)
+					}
+					if err := r.Create(ctx, targetVMPod); err != nil {
+						return fmt.Errorf("create target VM Pod: %s", err)
+					}
+					r.Recorder.Eventf(vm, corev1.EventTypeNormal, "CreatedTargetVMPod", "Created target VM Pod %q", targetVMPod.Name)
+				} else {
+					switch targetVMPod.Status.Phase {
+					case corev1.PodRunning:
+						vm.Status.Migration.TargetVMPodUID = targetVMPod.UID
+						vm.Status.Migration.TargetNodeName = targetVMPod.Spec.NodeName
+						vm.Status.Migration.Phase = virtv1alpha1.VirtualMachineMigrationScheduled
+					case corev1.PodFailed, corev1.PodUnknown:
+						vm.Status.Migration.TargetVMPodUID = targetVMPod.UID
+						vm.Status.Migration.Phase = virtv1alpha1.VirtualMachineMigrationFailed
+					}
+				}
+			}
+		}
 	case "", virtv1alpha1.VirtualMachineSucceeded, virtv1alpha1.VirtualMachineFailed:
 		run := false
 		switch vm.Spec.RunPolicy {
@@ -188,7 +279,7 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 				SecurityContext: &corev1.SecurityContext{
 					Privileged: func() *bool { v := true; return &v }(),
 				},
-				Args: []string{base64.StdEncoding.EncodeToString(vmJSON)},
+				Args: []string{"--vm-data", base64.StdEncoding.EncodeToString(vmJSON)},
 				VolumeMounts: []corev1.VolumeMount{{
 					Name:      "virtink",
 					MountPath: "/var/run/virtink",
@@ -202,6 +293,11 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 			}},
 		},
 	}
+
+	if vmPod.Labels == nil {
+		vmPod.Labels = map[string]string{}
+	}
+	vmPod.Labels["virtink.io/vm.name"] = vm.Name
 
 	if vm.Spec.Instance.Kernel != nil {
 		vmPod.Spec.Volumes = append(vmPod.Spec.Volumes, corev1.Volume{
@@ -489,6 +585,107 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 	return &vmPod, nil
 }
 
+func (r *VMReconciler) buildTargetVMPod(ctx context.Context, vm *virtv1alpha1.VirtualMachine) (*corev1.Pod, error) {
+	pod, err := r.buildVMPod(ctx, vm)
+	if err != nil {
+		return nil, err
+	}
+	pod.Spec.Containers[0].Args = append(pod.Spec.Containers[0].Args, "--receive-migration")
+
+	if pod.Spec.Affinity == nil {
+		pod.Spec.Affinity = &corev1.Affinity{}
+	}
+	affinity := pod.Spec.Affinity
+
+	if affinity.PodAntiAffinity == nil {
+		affinity.PodAntiAffinity = &corev1.PodAntiAffinity{}
+	}
+	podAntiAffinity := affinity.PodAntiAffinity
+	if podAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution == nil {
+		podAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution = []corev1.PodAffinityTerm{}
+	}
+	podAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution = append(podAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution, corev1.PodAffinityTerm{
+		LabelSelector: &metav1.LabelSelector{
+			MatchLabels: map[string]string{
+				"virtink.io/vm.name": vm.Name,
+			},
+		},
+		TopologyKey: "kubernetes.io/hostname",
+	})
+	return pod, nil
+}
+
+func (r *VMReconciler) reconcileVMMigratableConditions(ctx context.Context, vm *virtv1alpha1.VirtualMachine) error {
+	if meta.FindStatusCondition(vm.Status.Conditions, string(virtv1alpha1.VirtualMachineMigratable)) == nil {
+		migratableCondition, err := r.calculateMigratableCondition(ctx, vm)
+		if err != nil {
+			return fmt.Errorf("calculate VM migratable condition: %s", err)
+		}
+		meta.SetStatusCondition(&vm.Status.Conditions, *migratableCondition)
+	}
+	return nil
+}
+
+func (r *VMReconciler) calculateMigratableCondition(ctx context.Context, vm *virtv1alpha1.VirtualMachine) (*metav1.Condition, error) {
+	if vm.Spec.Instance.CPU.DedicatedCPUPlacement {
+		return &metav1.Condition{
+			Type:    string(virtv1alpha1.VirtualMachineMigratable),
+			Status:  metav1.ConditionFalse,
+			Reason:  "CPUNotMigratable",
+			Message: "migration is disabled when VM has enabled dedicated CPU placement",
+		}, nil
+	}
+
+	for _, network := range vm.Spec.Networks {
+		for _, iface := range vm.Spec.Instance.Interfaces {
+			if iface.Name != network.Name {
+				continue
+			}
+			if network.Pod != nil && iface.Bridge != nil {
+				return &metav1.Condition{
+					Type:    string(virtv1alpha1.VirtualMachineMigratable),
+					Status:  metav1.ConditionFalse,
+					Reason:  "InterfaceNotMigratable",
+					Message: "migration is disabled when VM has a bridged interface to the pod network",
+				}, nil
+			}
+			if iface.SRIOV != nil {
+				return &metav1.Condition{
+					Type:    string(virtv1alpha1.VirtualMachineMigratable),
+					Status:  metav1.ConditionFalse,
+					Reason:  "InterfaceNotMigratable",
+					Message: "migration is disabled when VM has a SR-IOV interface",
+				}, nil
+			}
+		}
+	}
+
+	for _, volume := range vm.Spec.Volumes {
+		if volume.ContainerRootfs != nil {
+			return &metav1.Condition{
+				Type:    string(virtv1alpha1.VirtualMachineMigratable),
+				Status:  metav1.ConditionFalse,
+				Reason:  "VolumeNotMigratable",
+				Message: "migration is disabled when VM has a containerRootfs volume",
+			}, nil
+		}
+		if volume.ContainerDisk != nil {
+			return &metav1.Condition{
+				Type:    string(virtv1alpha1.VirtualMachineMigratable),
+				Status:  metav1.ConditionFalse,
+				Reason:  "VolumeNotMigratable",
+				Message: "migration is disabled when VM has a containerDisk volume",
+			}, nil
+		}
+	}
+
+	return &metav1.Condition{
+		Type:   string(virtv1alpha1.VirtualMachineMigratable),
+		Status: metav1.ConditionTrue,
+		Reason: "Migratable",
+	}, nil
+}
+
 func (r *VMReconciler) gcVMPods(ctx context.Context, vm *virtv1alpha1.VirtualMachine) error {
 	var vmPodList corev1.PodList
 	if err := r.List(ctx, &vmPodList, client.MatchingFields{"vmUID": string(vm.UID)}); err != nil {
@@ -500,7 +697,7 @@ func (r *VMReconciler) gcVMPods(ctx context.Context, vm *virtv1alpha1.VirtualMac
 			continue
 		}
 
-		if vmPod.Name == vm.Status.VMPodName {
+		if vmPod.Name == vm.Status.VMPodName || vm.Status.Migration != nil && vmPod.Name == vm.Status.Migration.TargetVMPodName {
 			continue
 		}
 

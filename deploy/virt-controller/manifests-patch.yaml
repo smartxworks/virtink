@@ -23,3 +23,8 @@ webhooks:
       service:
         name: virt-controller
         namespace: virtink-system
+  - name: validate.virtualmachinemigration.v1alpha1.virt.virtink.smartx.com
+    clientConfig:
+      service:
+        name: virt-controller
+        namespace: virtink-system

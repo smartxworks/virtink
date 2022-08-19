@@ -76,6 +76,22 @@ rules:
 - apiGroups:
   - virt.virtink.smartx.com
   resources:
+  - virtualmachinemigrations
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - virt.virtink.smartx.com
+  resources:
+  - virtualmachinemigrations/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - virt.virtink.smartx.com
+  resources:
   - virtualmachines
   verbs:
   - create

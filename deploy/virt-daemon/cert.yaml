@@ -1,0 +1,13 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: virt-daemon-cert
+  namespace: virtink-system
+spec:
+  issuerRef:
+    kind: Issuer
+    name: virt-daemon-cert-issuer
+  dnsNames:
+    - virt-daemon.virtink-system.svc
+    - virt-daemon.virtink-system.svc.cluster.local
+  secretName: virt-daemon-cert
