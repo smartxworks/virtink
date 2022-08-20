@@ -56,8 +56,16 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $tag := .tag | toString -}}
 {{- $digest := .digest | toString -}}
 {{- if $digest }}
+  {{- if $registryName }}
     {{- printf "%s/%s@%s" $registryName $repositoryName $digest -}}
+  {{- else -}}
+    {{- printf "%s@%s" $repositoryName $digest -}}
+  {{- end -}}
 {{- else -}}
+  {{- if $registryName }}
     {{- printf "%s/%s:%s" $registryName $repositoryName $tag -}}
+  {{- else -}}
+    {{- printf "%s:%s" $repositoryName $tag -}}
+  {{- end -}}
 {{- end -}}
 {{- end -}}
