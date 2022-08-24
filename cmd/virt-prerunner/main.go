@@ -43,9 +43,9 @@ func main() {
 	}
 
 	cloudHypervisorCmd := []string{"cloud-hypervisor", "--api-socket", "/var/run/virtink/ch.sock", "--console", "pty", "--serial", "tty"}
-	cloudHypervisorCmd = append(cloudHypervisorCmd, "--kernel", vmConfig.Kernel.Path)
-	if vmConfig.Cmdline != nil {
-		cloudHypervisorCmd = append(cloudHypervisorCmd, "--cmdline", fmt.Sprintf("'%s'", vmConfig.Cmdline.Args))
+	cloudHypervisorCmd = append(cloudHypervisorCmd, "--kernel", vmConfig.Payload.Kernel)
+	if vmConfig.Payload.Cmdline != "" {
+		cloudHypervisorCmd = append(cloudHypervisorCmd, "--cmdline", fmt.Sprintf("'%s'", vmConfig.Payload.Cmdline))
 	}
 
 	vcpuToPCPU := []string{}
@@ -91,8 +91,8 @@ func main() {
 
 func buildVMConfig(ctx context.Context, vm *virtv1alpha1.VirtualMachine) (*cloudhypervisor.VmConfig, error) {
 	vmConfig := cloudhypervisor.VmConfig{
-		Kernel: &cloudhypervisor.KernelConfig{
-			Path: "/var/lib/cloud-hypervisor/hypervisor-fw",
+		Payload: &cloudhypervisor.PayloadConfig{
+			Kernel: "/var/lib/cloud-hypervisor/hypervisor-fw",
 		},
 		Cpus: &cloudhypervisor.CpusConfig{
 			BootVcpus: int(vm.Spec.Instance.CPU.Sockets * vm.Spec.Instance.CPU.CoresPerSocket),
@@ -109,14 +109,12 @@ func buildVMConfig(ctx context.Context, vm *virtv1alpha1.VirtualMachine) (*cloud
 	}
 
 	if runtime.GOARCH == "arm64" {
-		vmConfig.Kernel.Path = "/var/lib/cloud-hypervisor/CLOUDHV_EFI.fd"
+		vmConfig.Payload.Kernel = "/var/lib/cloud-hypervisor/CLOUDHV_EFI.fd"
 	}
 
 	if vm.Spec.Instance.Kernel != nil {
-		vmConfig.Kernel.Path = "/mnt/virtink-kernel/vmlinux"
-		vmConfig.Cmdline = &cloudhypervisor.CmdLineConfig{
-			Args: vm.Spec.Instance.Kernel.Cmdline,
-		}
+		vmConfig.Payload.Kernel = "/mnt/virtink-kernel/vmlinux"
+		vmConfig.Payload.Cmdline = vm.Spec.Instance.Kernel.Cmdline
 	}
 
 	if vm.Spec.Instance.CPU.DedicatedCPUPlacement {
