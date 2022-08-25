@@ -68,6 +68,9 @@ func main() {
 			if disk.Readonly {
 				arg = arg + ",readonly=on"
 			}
+			if disk.Direct {
+				arg = arg + ",direct=on"
+			}
 			cloudHypervisorCmd = append(cloudHypervisorCmd, arg)
 		}
 	}
@@ -144,7 +147,8 @@ func buildVMConfig(ctx context.Context, vm *virtv1alpha1.VirtualMachine) (*cloud
 		for _, volume := range vm.Spec.Volumes {
 			if volume.Name == disk.Name {
 				diskConfig := cloudhypervisor.DiskConfig{
-					Id: disk.Name,
+					Id:     disk.Name,
+					Direct: true,
 				}
 				switch {
 				case volume.ContainerDisk != nil:
