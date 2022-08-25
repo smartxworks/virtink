@@ -433,11 +433,23 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 
 	var networks []netv1.NetworkSelectionElement
 	for i, network := range vm.Spec.Networks {
+		var iface *virtv1alpha1.Interface
+		for j := range vm.Spec.Instance.Interfaces {
+			if vm.Spec.Instance.Interfaces[j].Name == network.Name {
+				iface = &vm.Spec.Instance.Interfaces[j]
+				break
+			}
+		}
+		if iface == nil {
+			return nil, fmt.Errorf("interface not found for network: %s", network.Name)
+		}
+
 		switch {
 		case network.Multus != nil:
 			networks = append(networks, netv1.NetworkSelectionElement{
 				Name:             network.Multus.NetworkName,
 				InterfaceRequest: fmt.Sprintf("net%d", i),
+				MacRequest:       iface.MAC,
 			})
 
 			var nad netv1.NetworkAttachmentDefinition

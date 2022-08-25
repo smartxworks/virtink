@@ -212,7 +212,8 @@ func buildVMConfig(ctx context.Context, vm *virtv1alpha1.VirtualMachine) (*cloud
 				vmConfig.Net = append(vmConfig.Net, &netConfig)
 			case iface.Masquerade != nil:
 				netConfig := cloudhypervisor.NetConfig{
-					Id: iface.Name,
+					Id:  iface.Name,
+					Mac: iface.MAC,
 				}
 				if err := setupMasqueradeNetwork(linkName, iface.Masquerade.CIDR, &netConfig); err != nil {
 					return nil, fmt.Errorf("setup masquerade network: %s", err)
@@ -377,14 +378,17 @@ func setupMasqueradeNetwork(linkName string, cidr string, netConfig *cloudhyperv
 	}
 
 	tapName := fmt.Sprintf("tap-%s", linkName)
-	tap, err := createTap(bridge, tapName)
-	if err != nil {
+	if _, err := createTap(bridge, tapName); err != nil {
 		return fmt.Errorf("create tap: %s", err)
 	}
 	netConfig.Tap = tapName
-	netConfig.Mac = tap.Attrs().HardwareAddr.String()
 
-	if err := startDHCPServer(bridgeName, tap.Attrs().HardwareAddr, vmIPNet, bridgeIP); err != nil {
+	vmMAC, err := net.ParseMAC(netConfig.Mac)
+	if err != nil {
+		return fmt.Errorf("parse VM MAC: %s", err)
+	}
+
+	if err := startDHCPServer(bridgeName, vmMAC, vmIPNet, bridgeIP); err != nil {
 		return fmt.Errorf("start DHCP server: %s", err)
 	}
 	return nil

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -79,6 +80,14 @@ func MutateVM(ctx context.Context, vm *virtv1alpha1.VirtualMachine, oldVM *virtv
 	}
 
 	for i := range vm.Spec.Instance.Interfaces {
+		if vm.Spec.Instance.Interfaces[i].MAC == "" {
+			mac, err := generateMAC()
+			if err != nil {
+				return fmt.Errorf("generate MAC: %s", err)
+			}
+			vm.Spec.Instance.Interfaces[i].MAC = mac.String()
+		}
+
 		if vm.Spec.Instance.Interfaces[i].Bridge == nil && vm.Spec.Instance.Interfaces[i].Masquerade == nil && vm.Spec.Instance.Interfaces[i].SRIOV == nil {
 			vm.Spec.Instance.Interfaces[i].InterfaceBindingMethod = virtv1alpha1.InterfaceBindingMethod{
 				Bridge: &virtv1alpha1.InterfaceBridge{},
@@ -323,7 +332,19 @@ func ValidateInterface(ctx context.Context, iface *virtv1alpha1.Interface, field
 	if iface.Name == "" {
 		errs = append(errs, field.Required(fieldPath.Child("name"), ""))
 	}
+	errs = append(errs, ValidateMAC(iface.MAC, fieldPath.Child("mac"))...)
 	errs = append(errs, ValidateInterfaceBindingMethod(ctx, &iface.InterfaceBindingMethod, fieldPath)...)
+	return errs
+}
+
+func ValidateMAC(mac string, fieldPath *field.Path) field.ErrorList {
+	var errs field.ErrorList
+	if mac == "" {
+		errs = append(errs, field.Required(fieldPath, ""))
+	}
+	if _, err := net.ParseMAC(mac); err != nil {
+		errs = append(errs, field.Invalid(fieldPath, mac, err.Error()))
+	}
 	return errs
 }
 
@@ -618,4 +639,13 @@ func ValidateMultusNetworkSource(ctx context.Context, source *virtv1alpha1.Multu
 		errs = append(errs, field.Required(fieldPath.Child("networkName"), ""))
 	}
 	return errs
+}
+
+func generateMAC() (net.HardwareAddr, error) {
+	prefix := []byte{0x52, 0x54, 0x00}
+	suffix := make([]byte, 3)
+	if _, err := rand.Read(suffix); err != nil {
+		return nil, fmt.Errorf("rand: %s", err)
+	}
+	return net.HardwareAddr(append(prefix, suffix...)), nil
 }

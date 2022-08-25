@@ -890,6 +890,8 @@ spec:
                       properties:
                         bridge:
                           type: object
+                        mac:
+                          type: string
                         masquerade:
                           properties:
                             cidr:

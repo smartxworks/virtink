@@ -30,6 +30,7 @@ func TestValidateVM(t *testing.T) {
 					InterfaceBindingMethod: virtv1alpha1.InterfaceBindingMethod{
 						Bridge: &virtv1alpha1.InterfaceBridge{},
 					},
+					MAC: "c6:1c:ba:0a:45:88",
 				}},
 			},
 			Volumes: []virtv1alpha1.Volume{{
@@ -208,6 +209,20 @@ func TestValidateVM(t *testing.T) {
 	}, {
 		vm: func() *virtv1alpha1.VirtualMachine {
 			vm := validVM.DeepCopy()
+			vm.Spec.Instance.Interfaces[0].MAC = ""
+			return vm
+		}(),
+		invalidFields: []string{"spec.instance.interfaces[0].mac"},
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			vm := validVM.DeepCopy()
+			vm.Spec.Instance.Interfaces[0].MAC = "01:1c:ba:0a:45:8"
+			return vm
+		}(),
+		invalidFields: []string{"spec.instance.interfaces[0].mac"},
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			vm := validVM.DeepCopy()
 			vm.Spec.Instance.Interfaces[0].Bridge = nil
 			return vm
 		}(),
@@ -338,6 +353,13 @@ func TestMutateVM(t *testing.T) {
 		}(),
 		assert: func(vm *virtv1alpha1.VirtualMachine) {
 			assert.Equal(t, "1Gi", vm.Spec.Instance.Memory.Size.String())
+		},
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			return oldVM.DeepCopy()
+		}(),
+		assert: func(vm *virtv1alpha1.VirtualMachine) {
+			assert.NotEmpty(t, vm.Spec.Instance.Interfaces[0].MAC)
 		},
 	}, {
 		vm: func() *virtv1alpha1.VirtualMachine {

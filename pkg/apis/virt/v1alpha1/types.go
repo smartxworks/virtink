@@ -82,6 +82,7 @@ type Disk struct {
 
 type Interface struct {
 	Name                   string `json:"name"`
+	MAC                    string `json:"mac,omitempty"`
 	InterfaceBindingMethod `json:",inline"`
 }
 
