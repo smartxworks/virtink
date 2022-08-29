@@ -22,11 +22,11 @@ Volumes are configured in `spec.volumes`. Each volume should has a unique name a
 
 The `containerDisk` feature provides the ability to store and distribute VM disks in the container image registry. No network shared storage devices are utilized by `containerDisk`s. The disks are pulled from the container registry and reside on the local node hosting the VMs that consume the disks.
 
-#### When to use a `containerDisk`
+#### When to Use a `containerDisk`
 
 `containerDisk`s are ephemeral storage devices that can be assigned to any number of active VMs. This makes them an ideal tool for users who want to replicate a large number of VM workloads that do not require persistent data.
 
-#### When to not use a `containerDisk`
+#### When to Not Use a `containerDisk`
 
 `containerDisk`s are not a good solution for any workload that requires persistent root disks across VM restarts.
 
@@ -95,11 +95,11 @@ spec:
         size: 4Gi
 ```
 
-#### When to use a `containerRootfs`
+#### When to Use a `containerRootfs`
 
 `containerRootfs`s are ephemeral storage devices that can be assigned to any number of active VMs. This makes them an ideal tool for users who want to replicate a large number of VM workloads that do not require persistent data.
 
-#### When to not use a `containerRootfs`
+#### When to Not Use a `containerRootfs`
 
 `containerRootfs`s are not a good solution for any workload that requires persistent root disks across VM restarts.
 
@@ -148,11 +148,11 @@ spec:
 
 A DataVolume is a custom resource provided by the [Containerized Data Importer (CDI) project](https://github.com/kubevirt/containerized-data-importer). Virtink integrates with CDI in order to provide users a workflow for dynamically creating PVCs and importing data into those PVCs. Without using a DataVolume, users have to prepare a PVC with a disk image before assigning it to a VM manifest. With a DataVolume, both the PVC creation and import is automated on behalf of the user.
 
-### Enabling DataVolume support
+### Enabling DataVolume Support
 
 In order to take advantage of the `dataVolume` volume source on a VM, CDI must be installed. Please refer to [CDI project documentation](https://github.com/kubevirt/containerized-data-importer#deploy-it) for its installation and usage.
 
-### Creating a VM with `dataVolume` disk
+### Creating a VM with `dataVolume` Disk
 
 Below is an example of a DataVolume being referenced by a VM. It is okay to post the VM manifest to the cluster before the DataVolume is created or while the DataVolume is still having data imported. Virtink knows not to start the VM until all referenced DataVolumes have finished their clone and import phases.
 
