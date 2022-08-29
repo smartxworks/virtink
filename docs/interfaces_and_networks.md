@@ -76,10 +76,17 @@ VM network interfaces are configured in `spec.instance.interfaces`. They describ
 
 Each interface should declare its type by defining one of the following fields:
 
-| Type     | Description                              |
-| -------- | ---------------------------------------- |
-| `bridge` | Connect using a linux bridge             |
-| `sriov`  | Passthrough a SR-IOV PCI device via VFIO |
+| Type         | Description                                     |
+| ------------ | ----------------------------------------------- |
+| `bridge`     | Connect using a linux bridge                    |
+| `masquerade` | Connect using iptables rules to NAT the traffic |
+| `sriov`      | Passthrough a SR-IOV PCI device via VFIO        |
+
+Each interface may also have additional configuration fields that modify properties "seen" inside guest instances, as listed below:
+
+| Name  | Format                                     | Default value | Description                                 |
+| ----- | ------------------------------------------ | ------------- | ------------------------------------------- |
+| `mac` | `ff:ff:ff:ff:ff:ff` or `FF-FF-FF-FF-FF-FF` |               | MAC address as seen inside the guest system |
 
 ### `bridge` Mode
 
@@ -101,6 +108,27 @@ spec:
 At this time, `bridge` mode doesn't support additional configuration fields.
 
 > **Note**: due to IPv4 address delegation, in `bridge` mode the pod doesn't have an IP address configured, which may introduce issues with third-party solutions that may rely on it. For example, Istio may not work in this mode.
+
+### `masquerade` Mode
+
+In `masquerade` mode, Virtink allocates internal IP addresses to VMs and hides them behind NAT. All the traffic exiting VMs is "NAT'ed" using pod IP addresses. A guest operating system should be configured to use DHCP to acquire IPv4 addresses. Currently all ports are forwarded into the VM.
+
+```yaml
+apiVersion: virt.virtink.smartx.com/v1alpha1
+kind: VirtualMachine
+spec:
+  instance:
+    interfaces:
+      - name: pod
+        masquerade: {}
+  networks:
+    - name: pod
+      pod: {}
+```
+
+> **Note**: `masquerade` is only allowed to connect to the pod network.
+
+> **Note**: The network default CIDR is `10.0.2.0/30`, and can be configured using the `cidr` field.
 
 ### `sriov` Mode
 
