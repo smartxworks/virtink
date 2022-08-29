@@ -48,7 +48,7 @@ Hardware with virtualization support is required. You should check if `/dev/kvm`
 Install all Virtink components:
 
 ```bash
-kubectl apply -f https://github.com/smartxworks/virtink/releases/download/v0.9.0/virtink.yaml
+kubectl apply -f https://github.com/smartxworks/virtink/releases/download/v0.10.0/virtink.yaml
 ```
 
 Once you have deployed Virtink, you can [create your virtual machines](#create-a-vm).
@@ -140,7 +140,7 @@ You can also `Shutdown`, `Reset`, `Reboot` or `Pause` a running VM, or `Resume` 
 - [x] [Persistent volumes](docs/disks_and_volumes.md#persistentvolumeclaim-volume)
 - [x] [CDI data volumes](docs/disks_and_volumes.md#datavolume-volume)
 - [x] ARM64 support
-- [ ] VM live migration
+- [x] VM live migration
 - [x] [SR-IOV NIC passthrough](docs/interfaces_and_networks.md#sriov-mode)
 - [ ] GPU passthrough
 - [x] [Dedicated CPU placement](docs/dedicated_cpu_placement.md)
