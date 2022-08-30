@@ -167,35 +167,40 @@ func (r *VMReconciler) reconcile(ctx context.Context, vm *virtv1alpha1.VirtualMa
 					ctx, cancel := context.WithCancel(context.Background())
 					migrationControlBlock.ReceiveMigrationCancelFunc = cancel
 
-					receiveMigrationErrChan := make(chan error, 1)
-					go func() {
-						if err := r.getMigrationTargetCloudHypervisorClient(vm).VmReceiveMigration(ctx, &cloudhypervisor.ReceiveMigrationData{
-							ReceiverUrl: "unix:/var/run/virtink/rx.sock",
-						}); err != nil {
-							receiveMigrationErrChan <- err
-						}
-					}()
-					migrationControlBlock.ReceiveMigrationErrCh = receiveMigrationErrChan
-
 					receiveMigrationSocketPath := filepath.Join(getMigrationTargetVMSocketDirPath(vm), "rx.sock")
-					if err := wait.PollImmediate(time.Second, 10*time.Second, func() (done bool, err error) {
-						select {
-						case err = <-migrationControlBlock.ReceiveMigrationErrCh:
-							log.Error(err, "receive migration")
-							r.Recorder.Eventf(vm, corev1.EventTypeWarning, "FailedMigrate", "Failed to receive migration on %s: %s", vm.Status.Migration.TargetNodeName, err)
-							vm.Status.Migration.Phase = virtv1alpha1.VirtualMachineMigrationFailed
-							return true, nil
-						default:
-							if _, err := os.Stat(receiveMigrationSocketPath); err != nil {
-								if os.IsNotExist(err) {
-									return false, nil
-								}
-								return false, err
-							}
-							return true, nil
+					if _, err := os.Stat(receiveMigrationSocketPath); err != nil {
+						if !os.IsNotExist(err) {
+							return err
 						}
-					}); err != nil {
-						return err
+						receiveMigrationErrChan := make(chan error, 1)
+						go func() {
+							if err := r.getMigrationTargetCloudHypervisorClient(vm).VmReceiveMigration(ctx, &cloudhypervisor.ReceiveMigrationData{
+								ReceiverUrl: "unix:/var/run/virtink/rx.sock",
+							}); err != nil {
+								receiveMigrationErrChan <- err
+							}
+						}()
+						migrationControlBlock.ReceiveMigrationErrCh = receiveMigrationErrChan
+
+						if err := wait.PollImmediate(time.Second, 10*time.Second, func() (done bool, err error) {
+							select {
+							case err = <-migrationControlBlock.ReceiveMigrationErrCh:
+								log.Error(err, "receive migration")
+								r.Recorder.Eventf(vm, corev1.EventTypeWarning, "FailedMigrate", "Failed to receive migration on %s: %s", vm.Status.Migration.TargetNodeName, err)
+								vm.Status.Migration.Phase = virtv1alpha1.VirtualMachineMigrationFailed
+								return true, nil
+							default:
+								if _, err := os.Stat(receiveMigrationSocketPath); err != nil {
+									if os.IsNotExist(err) {
+										return false, nil
+									}
+									return false, err
+								}
+								return true, nil
+							}
+						}); err != nil {
+							return err
+						}
 					}
 
 					clientCACertPool, err := tlsutil.LoadCACert(daemonCertDirPath)
