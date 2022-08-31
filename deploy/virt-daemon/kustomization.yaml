@@ -1,7 +1,0 @@
-resources:
-  - daemonset.yaml
-  - rolebinding.yaml
-  - role.yaml
-  - sa.yaml
-  - cert.yaml
-  - cert-issuer.yaml

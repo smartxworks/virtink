@@ -1,6 +1,0 @@
-resources:
-  - crd/virt.virtink.smartx.com_virtualmachines.yaml
-  - crd/virt.virtink.smartx.com_virtualmachinemigrations.yaml
-  - namespace.yaml
-  - virt-controller
-  - virt-daemon
