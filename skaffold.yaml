@@ -19,6 +19,14 @@ build:
       docker:
         dockerfile: build/virt-prerunner/Dockerfile
 deploy:
-  kustomize:
-    paths:
-      - deploy
+  helm:
+    releases:
+      - name: virtink
+        namespace: virtink-system
+        chartPath: ./deploy/helm/virtink
+        artifactOverrides:
+          virtController.image: virt-controller
+          virtDaemon.image: virt-daemon
+        imageStrategy:
+          helm:
+            explicitRegistry: true
