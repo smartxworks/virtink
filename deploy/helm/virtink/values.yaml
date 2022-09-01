@@ -21,15 +21,6 @@ virtController:
     #   memory: 128Mi
 
   podAnnotations: {}
-  podSecurityContext: {}
-    # fsGroup: 2000
-  securityContext: {}
-    # capabilities:
-    #   drop:
-    #   - ALL
-    # readOnlyRootFilesystem: true
-    # runAsNonRoot: true
-    # runAsUser: 1000
   image:
     repository: smartxworks/virt-controller
 
@@ -51,15 +42,6 @@ virtDaemon:
     #   memory: 128Mi
 
   podAnnotations: {}
-  podSecurityContext: {}
-    # fsGroup: 2000
-  securityContext: {}
-    # capabilities:
-    #   drop:
-    #   - ALL
-    # readOnlyRootFilesystem: true
-    # runAsNonRoot: true
-    # runAsUser: 1000
   image:
     repository: smartxworks/virt-daemon
 

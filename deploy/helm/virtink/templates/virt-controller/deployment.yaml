@@ -23,14 +23,10 @@ spec:
         app.kubernetes.io/component: {{ $service.name }}
     spec:
       serviceAccountName: {{ $service.name }}
-      securityContext:
-        {{- toYaml $service.podSecurityContext | nindent 8 }}
       containers:
         - name: {{ $service.name }}
           image: {{ include "virtink.image" $image }}
           imagePullPolicy: {{ $image.pullPolicy }}
-          securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
           args:
             - --zap-time-encoding=iso8601
             - --leader-elect

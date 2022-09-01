@@ -3,4 +3,4 @@ name: virtink
 description: A helm chart for installing virtink
 type: application
 version: 0.10.0
-appVersion: "1.16.0"
+appVersion: "v0.10.0"
