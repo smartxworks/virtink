@@ -2,5 +2,5 @@ apiVersion: v2
 name: virtink
 description: A helm chart for installing virtink
 type: application
-version: 0.9.0
+version: 0.10.0
 appVersion: "1.16.0"

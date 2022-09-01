@@ -70,7 +70,7 @@ image:
   repository: ""
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "v0.9.0"
+  tag: "v0.10.0"
   digest: ""
 
 nameOverride: ""
