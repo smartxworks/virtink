@@ -3,14 +3,14 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: {{ $service.name }}
+  name: virt-daemon
   labels:
-    app.kubernetes.io/component: {{ $service.name }}
+    app.kubernetes.io/component: virt-daemon
 spec:
   selector:
     matchLabels:
       {{- include "virtink.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: {{ $service.name }}
+      app.kubernetes.io/component: virt-daemon
   template:
     metadata:
       {{- with $service.podAnnotations }}
@@ -19,11 +19,11 @@ spec:
       {{- end }}
       labels:
         {{- include "virtink.selectorLabels" . | nindent 8 }}
-        app.kubernetes.io/component: {{ $service.name }}
+        app.kubernetes.io/component: virt-daemon
     spec:
-      serviceAccountName: {{ $service.name }}
+      serviceAccountName: virt-daemon
       containers:
-        - name: {{ $service.name }}
+        - name: virt-daemon
           image: {{ include "virtink.image" $image }}
           imagePullPolicy: {{ $image.pullPolicy }}
           env:

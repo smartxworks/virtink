@@ -1,15 +1,14 @@
-{{- $service := .Values.virtDaemon }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ $service.name }}
+  name: virt-daemon
   labels:
     {{- include "virtink.labels" . | nindent 4 }}
-    app.kubernetes.io/component: {{ $service.name }}
+    app.kubernetes.io/component: virt-daemon
 spec:
   selector:
     {{- include "virtink.selectorLabels" . | nindent 4 }}
-    app.kubernetes.io/component: {{ $service.name }}
+    app.kubernetes.io/component: virt-daemon
   ports:
     - port: 443
       targetPort: 9443

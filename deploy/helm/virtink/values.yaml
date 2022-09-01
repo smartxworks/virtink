@@ -3,7 +3,6 @@
 # Declare variables to be passed into your templates.
 
 virtController:
-  name: virt-controller
   replicas: 1
   nodeSelector: {}
   tolerations: []
@@ -25,7 +24,6 @@ virtController:
     repository: smartxworks/virt-controller
 
 virtDaemon:
-  name: virt-daemon
   nodeSelector: {}
   tolerations: []
   affinity: {}

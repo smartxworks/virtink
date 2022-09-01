@@ -3,15 +3,15 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ $service.name }}
+  name: virt-controller
   labels:
     {{- include "virtink.labels" . | nindent 4 }}
-    app.kubernetes.io/component: {{ $service.name }}
+    app.kubernetes.io/component: virt-controller
 spec:
   selector:
     matchLabels:
       {{- include "virtink.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: {{ $service.name }}
+      app.kubernetes.io/component: virt-controller
   template:
     metadata:
       {{- with $service.podAnnotations }}
@@ -20,11 +20,11 @@ spec:
       {{- end }}
       labels:
         {{- include "virtink.selectorLabels" . | nindent 8 }}
-        app.kubernetes.io/component: {{ $service.name }}
+        app.kubernetes.io/component: virt-controller
     spec:
-      serviceAccountName: {{ $service.name }}
+      serviceAccountName: virt-controller
       containers:
-        - name: {{ $service.name }}
+        - name: virt-controller
           image: {{ include "virtink.image" $image }}
           imagePullPolicy: {{ $image.pullPolicy }}
           args:
@@ -39,7 +39,7 @@ spec:
       volumes:
         - name: cert
           secret:
-            secretName: {{ $service.name }}-cert
+            secretName: virt-controller-cert
             defaultMode: 0644
       {{- with .Values.virtController.nodeSelector }}
       nodeSelector:

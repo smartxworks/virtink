@@ -1,20 +1,19 @@
-{{- $service := .Values.virtDaemon }}
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: {{ $service.name }}-cert
+  name: virt-daemon-cert
 spec:
   issuerRef:
     kind: Issuer
-    name: {{ $service.name }}-cert-issuer
+    name: virt-daemon-cert-issuer
   dnsNames:
-    - {{ $service.name }}.{{ .Release.Namespace }}.svc
-    - {{ $service.name }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}
-  secretName: {{ $service.name }}-cert
+    - virt-daemon.{{ .Release.Namespace }}.svc
+    - virt-daemon.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}
+  secretName: virt-daemon-cert
 ---
 apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
-  name: {{ $service.name }}-cert-issuer
+  name: virt-daemon-cert-issuer
 spec:
   selfSigned: {}

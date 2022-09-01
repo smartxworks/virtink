@@ -1,20 +1,19 @@
-{{- $service := .Values.virtController }}
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: {{ $service.name }}-cert
+  name: virt-controller-cert
 spec:
   issuerRef:
     kind: Issuer
-    name: {{ $service.name }}-cert-issuer
+    name: virt-controller-cert-issuer
   dnsNames:
-    - {{ $service.name }}.{{ .Release.Namespace }}.svc
-    - {{ $service.name }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}
-  secretName: {{ $service.name }}-cert
+    - virt-controller.{{ .Release.Namespace }}.svc
+    - virt-controller.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}
+  secretName: virt-controller-cert
 ---
 apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
-  name: {{ $service.name }}-cert-issuer
+  name: virt-controller-cert-issuer
 spec:
   selfSigned: {}
