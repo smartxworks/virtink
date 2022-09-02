@@ -4,6 +4,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: virt-daemon
+  namespace: {{ .Release.Namespace }}
   labels:
     app.kubernetes.io/component: virt-daemon
 spec:

@@ -4,6 +4,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: virt-controller
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "virtink.labels" . | nindent 4 }}
     app.kubernetes.io/component: virt-controller
