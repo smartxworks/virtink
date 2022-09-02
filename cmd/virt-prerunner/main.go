@@ -302,13 +302,14 @@ func setupBridgeNetwork(linkName string, cidr string, netConfig *cloudhypervisor
 		return fmt.Errorf("spoof link MAC: %s", err)
 	}
 
+	newLinkName := link.Attrs().Name
 	if linkAddr != nil {
 		if err := netlink.AddrDel(link, &linkAddrs[0]); err != nil {
 			return fmt.Errorf("delete link address: %s", err)
 		}
 
 		originalLinkName := link.Attrs().Name
-		newLinkName := fmt.Sprintf("%s-nic", originalLinkName)
+		newLinkName = fmt.Sprintf("%s-nic", originalLinkName)
 
 		if err := netlink.LinkSetName(link, newLinkName); err != nil {
 			return fmt.Errorf("rename link: %s", err)
@@ -333,6 +334,10 @@ func setupBridgeNetwork(linkName string, cidr string, netConfig *cloudhypervisor
 
 	if err := netlink.LinkSetUp(link); err != nil {
 		return fmt.Errorf("up link: %s", err)
+	}
+
+	if _, err := executeCommand("bridge", "link", "set", "dev", newLinkName, "learning", "off"); err != nil {
+		return fmt.Errorf("disable port MAC learning on bridge: %s", err)
 	}
 
 	tapName := fmt.Sprintf("tap-%s", linkName)
