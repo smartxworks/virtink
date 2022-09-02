@@ -1,14 +1,14 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: virt-daemon
+  name: virt-controller
   labels:
     {{- include "virtink.labels" . | nindent 4 }}
-    app.kubernetes.io/component: virt-daemon
+    app.kubernetes.io/component: virt-controller
 spec:
   selector:
     {{- include "virtink.selectorLabels" . | nindent 4 }}
-    app.kubernetes.io/component: virt-daemon
+    app.kubernetes.io/component: virt-controller
   ports:
     - port: 443
       targetPort: 9443

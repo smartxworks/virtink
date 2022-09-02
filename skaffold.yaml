@@ -23,6 +23,7 @@ deploy:
     releases:
       - name: virtink
         namespace: virtink-system
+        createNamespace: true
         chartPath: ./deploy/helm/virtink
         artifactOverrides:
           virtController.image: virt-controller
