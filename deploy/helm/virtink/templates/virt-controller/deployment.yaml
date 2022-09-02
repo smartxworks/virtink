@@ -1,5 +1,6 @@
 {{- $service := .Values.virtController }}
 {{- $image := merge $service.image .Values.image }}
+{{- $prerunnerImage := merge .Values.virtPrerunner.image .Values.image }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -28,6 +29,9 @@ spec:
         - name: virt-controller
           image: {{ include "virtink.image" $image }}
           imagePullPolicy: {{ $image.pullPolicy }}
+          env:
+            - name: PRERUNNER_IMAGE
+              value: {{ include "virtink.image" $prerunnerImage }}
           args:
             - --zap-time-encoding=iso8601
             - --leader-elect

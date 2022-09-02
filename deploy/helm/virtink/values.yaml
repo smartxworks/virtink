@@ -23,6 +23,10 @@ virtController:
   image:
     repository: smartxworks/virt-controller
 
+virtPrerunner:
+  image:
+    repository: smartxworks/virt-prerunner
+
 virtDaemon:
   nodeSelector: {}
   tolerations: []
