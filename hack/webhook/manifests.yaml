@@ -1,17 +1,17 @@
+---
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
 metadata:
-  annotations:
-    cert-manager.io/inject-ca-from: '{{ .Release.Namespace }}/virt-controller-cert'
-  name: virtink-mutating-webhook-configuration
+  creationTimestamp: null
+  name: mutating-webhook-configuration
 webhooks:
 - admissionReviewVersions:
   - v1
   - v1beta1
   clientConfig:
     service:
-      name: virt-controller
-      namespace: '{{ .Release.Namespace }}'
+      name: webhook-service
+      namespace: system
       path: /mutate-v1alpha1-virtualmachine
   failurePolicy: Fail
   name: mutate.virtualmachine.v1alpha1.virt.virtink.smartx.com
@@ -30,17 +30,16 @@ webhooks:
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
-  annotations:
-    cert-manager.io/inject-ca-from: '{{ .Release.Namespace }}/virt-controller-cert'
-  name: virtink-validating-webhook-configuration
+  creationTimestamp: null
+  name: validating-webhook-configuration
 webhooks:
 - admissionReviewVersions:
   - v1
   - v1beta1
   clientConfig:
     service:
-      name: virt-controller
-      namespace: '{{ .Release.Namespace }}'
+      name: webhook-service
+      namespace: system
       path: /validate-v1alpha1-virtualmachine
   failurePolicy: Fail
   name: validate.virtualmachine.v1alpha1.virt.virtink.smartx.com
@@ -60,8 +59,8 @@ webhooks:
   - v1beta1
   clientConfig:
     service:
-      name: virt-controller
-      namespace: '{{ .Release.Namespace }}'
+      name: webhook-service
+      namespace: system
       path: /validate-v1alpha1-virtualmachinemigration
   failurePolicy: Fail
   name: validate.virtualmachinemigration.v1alpha1.virt.virtink.smartx.com
