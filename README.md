@@ -43,6 +43,11 @@ Other container runtimes, which do not use virtualization features, should work 
 
 Hardware with virtualization support is required. You should check if `/dev/kvm` exists on each Kubernetes nodes.
 
+#### Host Kernel Version
+
+- Minimum: v4.11
+- Recommended: v5.6 or above
+
 ### Install Virtink
 
 Install all Virtink components:
