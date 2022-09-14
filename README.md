@@ -53,7 +53,7 @@ Hardware with virtualization support is required. You should check if `/dev/kvm`
 Install all Virtink components:
 
 ```bash
-kubectl apply -f https://github.com/smartxworks/virtink/releases/download/v0.10.0/virtink.yaml
+kubectl apply -f https://github.com/smartxworks/virtink/releases/download/v0.10.1/virtink.yaml
 ```
 
 Once you have deployed Virtink, you can [create your virtual machines](#create-a-vm).
