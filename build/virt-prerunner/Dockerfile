@@ -14,7 +14,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build go build -a cmd/virt-prerunn
 
 FROM alpine
 
-RUN apk add --no-cache tini curl screen dnsmasq cdrkit iptables iproute2
+RUN apk add --no-cache tini curl screen dnsmasq cdrkit iptables iproute2 qemu-virtiofsd
 
 RUN set -eux; \
     mkdir /var/lib/cloud-hypervisor; \

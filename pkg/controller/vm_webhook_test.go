@@ -25,6 +25,9 @@ func TestValidateVM(t *testing.T) {
 				Disks: []virtv1alpha1.Disk{{
 					Name: "vol-1",
 				}},
+				FileSystems: []virtv1alpha1.FileSystem{{
+					Name: "vol-2",
+				}},
 				Interfaces: []virtv1alpha1.Interface{{
 					Name: "net-1",
 					InterfaceBindingMethod: virtv1alpha1.InterfaceBindingMethod{
@@ -38,6 +41,13 @@ func TestValidateVM(t *testing.T) {
 				VolumeSource: virtv1alpha1.VolumeSource{
 					ContainerDisk: &virtv1alpha1.ContainerDiskVolumeSource{
 						Image: "container-disk",
+					},
+				},
+			}, {
+				Name: "vol-2",
+				VolumeSource: virtv1alpha1.VolumeSource{
+					PersistentVolumeClaim: &virtv1alpha1.PersistentVolumeClaimVolumeSource{
+						ClaimName: "vol-2",
 					},
 				},
 			}},
@@ -199,6 +209,13 @@ func TestValidateVM(t *testing.T) {
 			return vm
 		}(),
 		invalidFields: []string{"spec.instance.disks[0].name"},
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			vm := validVM.DeepCopy()
+			vm.Spec.Instance.FileSystems[0].Name = ""
+			return vm
+		}(),
+		invalidFields: []string{"spec.instance.fileSystems[0].name"},
 	}, {
 		vm: func() *virtv1alpha1.VirtualMachine {
 			vm := validVM.DeepCopy()

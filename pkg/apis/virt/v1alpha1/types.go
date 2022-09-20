@@ -52,11 +52,12 @@ const (
 )
 
 type Instance struct {
-	CPU        CPU         `json:"cpu,omitempty"`
-	Memory     Memory      `json:"memory"`
-	Kernel     *Kernel     `json:"kernel,omitempty"`
-	Disks      []Disk      `json:"disks,omitempty"`
-	Interfaces []Interface `json:"interfaces,omitempty"`
+	CPU         CPU          `json:"cpu,omitempty"`
+	Memory      Memory       `json:"memory"`
+	Kernel      *Kernel      `json:"kernel,omitempty"`
+	Disks       []Disk       `json:"disks,omitempty"`
+	FileSystems []FileSystem `json:"fileSystems,omitempty"`
+	Interfaces  []Interface  `json:"interfaces,omitempty"`
 }
 
 type CPU struct {
@@ -78,6 +79,10 @@ type Kernel struct {
 type Disk struct {
 	Name     string `json:"name"`
 	ReadOnly *bool  `json:"readOnly,omitempty"`
+}
+
+type FileSystem struct {
+	Name string `json:"name"`
 }
 
 type Interface struct {

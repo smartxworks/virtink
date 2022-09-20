@@ -247,6 +247,15 @@ func ValidateInstance(ctx context.Context, instance *virtv1alpha1.Instance, fiel
 		errs = append(errs, ValidateDisk(ctx, &disk, fieldPath)...)
 	}
 
+	for i, fs := range instance.FileSystems {
+		fieldPath := fieldPath.Child("fileSystems").Index(i)
+		if _, ok := diskNames[fs.Name]; ok {
+			errs = append(errs, field.Duplicate(fieldPath.Child("name"), fs.Name))
+		}
+		diskNames[fs.Name] = struct{}{}
+		errs = append(errs, ValidateFileSystem(ctx, &fs, fieldPath)...)
+	}
+
 	ifaceNames := map[string]struct{}{}
 	for i, iface := range instance.Interfaces {
 		fieldPath := fieldPath.Child("interfaces").Index(i)
@@ -317,6 +326,19 @@ func ValidateDisk(ctx context.Context, disk *virtv1alpha1.Disk, fieldPath *field
 	}
 
 	if disk.Name == "" {
+		errs = append(errs, field.Required(fieldPath.Child("name"), ""))
+	}
+	return errs
+}
+
+func ValidateFileSystem(ctx context.Context, fs *virtv1alpha1.FileSystem, fieldPath *field.Path) field.ErrorList {
+	var errs field.ErrorList
+	if fs == nil {
+		errs = append(errs, field.Required(fieldPath, ""))
+		return errs
+	}
+
+	if fs.Name == "" {
 		errs = append(errs, field.Required(fieldPath.Child("name"), ""))
 	}
 	return errs
