@@ -71,7 +71,12 @@ func main() {
 	cloudHypervisorCmd = append(cloudHypervisorCmd, "--cpus", fmt.Sprintf("boot=%d,topology=%d:%d:%d:%d,affinity=%s",
 		vmConfig.Cpus.BootVcpus, vmConfig.Cpus.Topology.ThreadsPerCore, vmConfig.Cpus.Topology.CoresPerDie,
 		vmConfig.Cpus.Topology.DiesPerPackage, vmConfig.Cpus.Topology.Packages, cpuAffinity))
-	cloudHypervisorCmd = append(cloudHypervisorCmd, "--memory", fmt.Sprintf("size=%d", vmConfig.Memory.Size))
+
+	memoryArg := fmt.Sprintf("size=%d", vmConfig.Memory.Size)
+	if vmConfig.Memory.Shared {
+		memoryArg = memoryArg + ",shared=on"
+	}
+	cloudHypervisorCmd = append(cloudHypervisorCmd, "--memory", memoryArg)
 
 	if len(vmConfig.Disks) > 0 {
 		cloudHypervisorCmd = append(cloudHypervisorCmd, "--disk")
@@ -83,6 +88,14 @@ func main() {
 			if disk.Direct {
 				arg = arg + ",direct=on"
 			}
+			cloudHypervisorCmd = append(cloudHypervisorCmd, arg)
+		}
+	}
+
+	if len(vmConfig.Fs) > 0 {
+		cloudHypervisorCmd = append(cloudHypervisorCmd, "--fs")
+		for _, fs := range vmConfig.Fs {
+			arg := fmt.Sprintf("id=%s,socket=%s,tag=%s", fs.Id, fs.Socket, fs.Tag)
 			cloudHypervisorCmd = append(cloudHypervisorCmd, arg)
 		}
 	}
@@ -185,6 +198,31 @@ func buildVMConfig(ctx context.Context, vm *virtv1alpha1.VirtualMachine) (*cloud
 				}
 
 				vmConfig.Disks = append(vmConfig.Disks, &diskConfig)
+				break
+			}
+		}
+	}
+
+	for _, fs := range vm.Spec.Instance.FileSystems {
+		vmConfig.Memory.Shared = true
+
+		if err := os.MkdirAll("/var/run/virtink/virtiofsd", 0755); err != nil {
+			return nil, fmt.Errorf("create virtiofsd socket dir: %s", err)
+		}
+
+		for _, volume := range vm.Spec.Volumes {
+			if volume.Name == fs.Name {
+				socketPath := fmt.Sprintf("/var/run/virtink/virtiofsd/%s.sock", volume.Name)
+				if err := exec.Command("/usr/lib/qemu/virtiofsd", "--socket-path="+socketPath, "-o", "source=/mnt/"+volume.Name).Start(); err != nil {
+					return nil, fmt.Errorf("start virtiofsd: %s", err)
+				}
+
+				fsConfig := cloudhypervisor.FsConfig{
+					Id:     fs.Name,
+					Socket: socketPath,
+					Tag:    fs.Name,
+				}
+				vmConfig.Fs = append(vmConfig.Fs, &fsConfig)
 				break
 			}
 		}

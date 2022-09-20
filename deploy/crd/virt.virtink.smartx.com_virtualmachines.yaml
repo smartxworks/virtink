@@ -885,6 +885,15 @@ spec:
                       - name
                       type: object
                     type: array
+                  fileSystems:
+                    items:
+                      properties:
+                        name:
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    type: array
                   interfaces:
                     items:
                       properties:
