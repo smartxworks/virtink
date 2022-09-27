@@ -16,9 +16,9 @@ case $1 in
     fi
 
     if [[ "$4" =~ ^/.* ]]; then
-      cp $4 $temp/network-data
+      cp $4 $temp/network-config
     else
-      echo "$4" | base64 -d > $temp/network-data
+      echo "$4" | base64 -d > $temp/network-config
     fi
 
     genisoimage -volid cidata -joliet -rock -output $5 $temp

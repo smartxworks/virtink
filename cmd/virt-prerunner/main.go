@@ -285,13 +285,9 @@ func setupBridgeNetwork(linkName string, cidr string, netConfig *cloudhypervisor
 		linkAddr = linkAddrs[0].IPNet
 	}
 
-	var linkGateway net.IP
 	linkRoutes, err := netlink.RouteList(link, netlink.FAMILY_V4)
 	if err != nil {
 		return fmt.Errorf("list link routes: %s", err)
-	}
-	if len(linkRoutes) > 0 {
-		linkGateway = linkRoutes[0].Gw
 	}
 
 	if err := netlink.LinkSetDown(link); err != nil {
@@ -347,7 +343,18 @@ func setupBridgeNetwork(linkName string, cidr string, netConfig *cloudhypervisor
 	netConfig.Tap = tapName
 
 	if linkAddr != nil {
-		if err := startDHCPServer(bridgeName, linkMAC, linkAddr, linkGateway); err != nil {
+		var linkGateway net.IP
+		var routes []netlink.Route
+		for _, route := range linkRoutes {
+			if route.Dst == nil && len(route.Src) == 0 && len(route.Gw) == 0 {
+				continue
+			}
+			if len(linkGateway) == 0 && route.Dst == nil {
+				linkGateway = route.Gw
+			}
+			routes = append(routes, route)
+		}
+		if err := startDHCPServer(bridgeName, linkMAC, linkAddr, linkGateway, routes); err != nil {
 			return fmt.Errorf("start DHCP server: %s", err)
 		}
 	}
@@ -405,7 +412,7 @@ func setupMasqueradeNetwork(linkName string, cidr string, netConfig *cloudhyperv
 		return fmt.Errorf("parse VM MAC: %s", err)
 	}
 
-	if err := startDHCPServer(bridgeName, vmMAC, vmIPNet, bridgeIP); err != nil {
+	if err := startDHCPServer(bridgeName, vmMAC, vmIPNet, bridgeIP, nil); err != nil {
 		return fmt.Errorf("start DHCP server: %s", err)
 	}
 	return nil
@@ -476,7 +483,7 @@ func createTap(bridge netlink.Link, tapName string) (netlink.Link, error) {
 //go:embed dnsmasq.conf
 var dnsmasqConf string
 
-func startDHCPServer(ifaceName string, mac net.HardwareAddr, ipNet *net.IPNet, gateway net.IP) error {
+func startDHCPServer(ifaceName string, mac net.HardwareAddr, ipNet *net.IPNet, gateway net.IP, routes []netlink.Route) error {
 	rc, err := resolvconf.Get()
 	if err != nil {
 		return fmt.Errorf("get resolvconf: %s", err)
@@ -503,10 +510,15 @@ func startDHCPServer(ifaceName string, mac net.HardwareAddr, ipNet *net.IPNet, g
 		"mac":          mac.String(),
 		"ip":           ipNet.IP.String(),
 		"mask":         net.IP(ipNet.Mask).String(),
-		"gateway":      gateway.String(),
+		"routes":       sortAndFormatRoutes(routes),
 		"dnsServer":    strings.Join(resolvconf.GetNameservers(rc.Content, types.IPv4), ","),
 		"domainSearch": strings.Join(resolvconf.GetSearchDomains(rc.Content), ","),
 	}
+
+	if len(gateway) > 0 {
+		data["gateway"] = gateway.String()
+	}
+
 	if err := template.Must(template.New("dnsmasq.conf").Parse(dnsmasqConf)).Execute(dnsmasqConfFile, data); err != nil {
 		return fmt.Errorf("write dnsmasq config file: %s", err)
 	}
@@ -515,6 +527,34 @@ func startDHCPServer(ifaceName string, mac net.HardwareAddr, ipNet *net.IPNet, g
 		return fmt.Errorf("start dnsmasq: %s", err)
 	}
 	return nil
+}
+
+func sortAndFormatRoutes(routes []netlink.Route) string {
+	var sortedRoutes []netlink.Route
+	var defaultRoutes []netlink.Route
+	for _, route := range routes {
+		if route.Dst == nil {
+			defaultRoutes = append(defaultRoutes, route)
+			continue
+		}
+		sortedRoutes = append(sortedRoutes, route)
+	}
+	sortedRoutes = append(sortedRoutes, defaultRoutes...)
+
+	items := []string{}
+	for _, route := range sortedRoutes {
+		if len(route.Gw) == 0 {
+			route.Gw = net.IPv4(0, 0, 0, 0)
+		}
+		if route.Dst == nil {
+			route.Dst = &net.IPNet{
+				IP:   net.IPv4(0, 0, 0, 0),
+				Mask: net.CIDRMask(0, 32),
+			}
+		}
+		items = append(items, route.Dst.String(), route.Gw.String())
+	}
+	return strings.Join(items, ",")
 }
 
 func executeCommand(name string, arg ...string) (string, error) {
