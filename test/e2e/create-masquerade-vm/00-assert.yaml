@@ -1,6 +1,0 @@
-apiVersion: virt.virtink.smartx.com/v1alpha1
-kind: VirtualMachine
-metadata:
-  name: ubuntu-masquerade
-status:
-  phase: Running

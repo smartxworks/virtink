@@ -1,0 +1,6 @@
+apiVersion: virt.virtink.smartx.com/v1alpha1
+kind: VirtualMachineMigration
+metadata:
+  name: ubuntu-datavolume-migration-02
+spec:
+  vmName: ubuntu-datavolume

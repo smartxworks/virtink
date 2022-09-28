@@ -102,6 +102,7 @@ func ValidateVMName(ctx context.Context, c client.Client, namespace string, vmNa
 		} else {
 			errs = append(errs, field.InternalError(fieldPath, err))
 		}
+		return errs
 	}
 
 	migratableCondition := meta.FindStatusCondition(vm.Status.Conditions, string(virtv1alpha1.VirtualMachineMigratable))

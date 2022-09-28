@@ -1,0 +1,18 @@
+apiVersion: virt.virtink.smartx.com/v1alpha1
+kind: VirtualMachineMigration
+metadata:
+  name: ubuntu-datavolume-migration-02
+status:
+  phase: Succeeded
+---
+apiVersion: virt.virtink.smartx.com/v1alpha1
+kind: VirtualMachine
+metadata:
+  name: ubuntu-datavolume
+status:
+  phase: Running
+  conditions:
+    - type: Ready
+      status: "True"
+    - type: Migratable
+      status: "True"

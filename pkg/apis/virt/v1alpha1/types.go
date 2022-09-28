@@ -218,6 +218,7 @@ type VirtualMachineConditionType string
 
 const (
 	VirtualMachineMigratable VirtualMachineConditionType = "Migratable"
+	VirtualMachineReady      VirtualMachineConditionType = "Ready"
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
