@@ -3,6 +3,10 @@ kind: VirtualMachine
 metadata:
   name: ubuntu-container-disk
 spec:
+  readinessProbe:
+    httpGet:
+      scheme: HTTP
+      port: 80
   instance:
     memory:
       size: 1Gi
@@ -22,6 +26,10 @@ spec:
           password: password
           chpasswd: { expire: False }
           ssh_pwauth: True
+          packages:
+            - nginx
+          runcmd:
+            - [ "systemctl", "enable", "--now", "nginx" ]
   networks:
     - name: pod
       pod: {}

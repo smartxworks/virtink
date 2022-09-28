@@ -4,3 +4,8 @@ metadata:
   name: ubuntu-datavolume
 status:
   phase: Running
+  conditions:
+    - type: Ready
+      status: "True"
+    - type: Migratable
+      status: "True"

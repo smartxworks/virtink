@@ -58,14 +58,14 @@ kuttl: $(KUTTL)
 $(KUTTL): $(LOCALBIN)
 	curl -sLo $(KUTTL) https://github.com/kudobuilder/kuttl/releases/download/v0.12.1/kubectl-kuttl_0.12.1_$(GOOS)_$(shell uname -m) && chmod +x $(KUTTL)
 
-E2E_KIND_CLUSTER_NAME = virtink-e2e-$(shell date "+%Y-%m-%d-%H-%M-%S")
-E2E_KIND_CLUSTER_KUBECONFIG = /tmp/$(E2E_KIND_CLUSTER_NAME).kubeconfig
+E2E_KIND_CLUSTER_NAME := virtink-e2e-$(shell date "+%Y-%m-%d-%H-%M-%S")
+E2E_KIND_CLUSTER_KUBECONFIG := /tmp/$(E2E_KIND_CLUSTER_NAME).kubeconfig
 
 .PHONY: e2e-image
 e2e-image:
-	docker buildx build -t virt-controller:e2e -f build/virt-controller/Dockerfile --build-arg PRERUNNER_IMAGE=virt-prerunner:e2e .
-	docker buildx build -t virt-daemon:e2e -f build/virt-daemon/Dockerfile .
-	docker buildx build -t virt-prerunner:e2e -f build/virt-prerunner/Dockerfile  .
+	docker buildx build -t virt-controller:e2e -f build/virt-controller/Dockerfile --build-arg PRERUNNER_IMAGE=virt-prerunner:e2e --load .
+	docker buildx build -t virt-daemon:e2e -f build/virt-daemon/Dockerfile --load .
+	docker buildx build -t virt-prerunner:e2e -f build/virt-prerunner/Dockerfile  --load .
 
 e2e: kind kubectl cmctl skaffold kuttl e2e-image
 	echo "e2e kind cluster: $(E2E_KIND_CLUSTER_NAME)"
@@ -83,6 +83,10 @@ e2e: kind kubectl cmctl skaffold kuttl e2e-image
 	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) wait -n cdi deployment cdi-operator --for condition=Available --timeout -1s
 	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) apply -f https://github.com/kubevirt/containerized-data-importer/releases/download/v1.53.0/cdi-cr.yaml
 	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) wait cdi.cdi.kubevirt.io cdi --for condition=Available --timeout -1s
+
+	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) apply -f test/e2e/config/rook-nfs/crds.yaml
+	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) wait crd nfsservers.nfs.rook.io --for condition=Established
+	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) apply -f test/e2e/config/rook-nfs/
 
 	PATH=$(LOCALBIN):$(PATH) $(SKAFFOLD) render --offline=true --default-repo="" --digest-source=tag --images virt-controller:e2e,virt-daemon:e2e | KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) apply -f -
 	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) wait -n virtink-system deployment virt-controller --for condition=Available --timeout -1s

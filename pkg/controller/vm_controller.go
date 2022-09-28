@@ -170,7 +170,7 @@ func (r *VMReconciler) reconcile(ctx context.Context, vm *virtv1alpha1.VirtualMa
 			return nil
 		}
 
-		if err := r.reconcileVMMigratableConditions(ctx, vm); err != nil {
+		if err := r.reconcileVMConditions(ctx, vm, &vmPod); err != nil {
 			return err
 		}
 
@@ -615,7 +615,22 @@ func (r *VMReconciler) buildTargetVMPod(ctx context.Context, vm *virtv1alpha1.Vi
 	return pod, nil
 }
 
-func (r *VMReconciler) reconcileVMMigratableConditions(ctx context.Context, vm *virtv1alpha1.VirtualMachine) error {
+func (r *VMReconciler) reconcileVMConditions(ctx context.Context, vm *virtv1alpha1.VirtualMachine, vmPod *corev1.Pod) error {
+	for _, condition := range vmPod.Status.Conditions {
+		if condition.Type == corev1.PodReady {
+			readyCondition := metav1.Condition{
+				Type:    string(virtv1alpha1.VirtualMachineReady),
+				Status:  metav1.ConditionStatus(condition.Status),
+				Reason:  condition.Reason,
+				Message: condition.Message,
+			}
+			if readyCondition.Reason == "" {
+				readyCondition.Reason = string(readyCondition.Status)
+			}
+			meta.SetStatusCondition(&vm.Status.Conditions, readyCondition)
+		}
+	}
+
 	if meta.FindStatusCondition(vm.Status.Conditions, string(virtv1alpha1.VirtualMachineMigratable)) == nil {
 		migratableCondition, err := r.calculateMigratableCondition(ctx, vm)
 		if err != nil {

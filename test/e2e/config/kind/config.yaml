@@ -2,3 +2,17 @@ kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 networking:
   disableDefaultCNI: true
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+    - |
+      kind: InitConfiguration
+      nodeRegistration:
+        taints: []
+    extraMounts:
+      - hostPath: test/e2e/config/kind/containerd-service.conf
+        containerPath: /etc/systemd/system/containerd.service.d/override.conf
+  - role: worker
+    extraMounts:
+      - hostPath: test/e2e/config/kind/containerd-service.conf
+        containerPath: /etc/systemd/system/containerd.service.d/override.conf

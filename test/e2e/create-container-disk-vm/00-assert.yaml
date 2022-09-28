@@ -4,3 +4,8 @@ metadata:
   name: ubuntu-container-disk
 status:
   phase: Running
+  conditions:
+    - type: Ready
+      status: "True"
+    - type: Migratable
+      status: "False"
