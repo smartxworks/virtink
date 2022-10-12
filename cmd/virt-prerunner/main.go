@@ -76,6 +76,9 @@ func main() {
 	if vmConfig.Memory.Shared {
 		memoryArg = memoryArg + ",shared=on"
 	}
+	if vmConfig.Memory.Hugepages {
+		memoryArg = memoryArg + ",hugepages=true"
+	}
 	cloudHypervisorCmd = append(cloudHypervisorCmd, "--memory", memoryArg)
 
 	if len(vmConfig.Disks) > 0 {
@@ -103,7 +106,11 @@ func main() {
 	if len(vmConfig.Net) > 0 {
 		cloudHypervisorCmd = append(cloudHypervisorCmd, "--net")
 		for _, net := range vmConfig.Net {
-			cloudHypervisorCmd = append(cloudHypervisorCmd, fmt.Sprintf("id=%s,mac=%s,tap=%s", net.Id, net.Mac, net.Tap))
+			if net.VhostUser {
+				cloudHypervisorCmd = append(cloudHypervisorCmd, fmt.Sprintf("id=%s,mac=%s,vhost_user=true,vhost_mode=server,socket=%s", net.Id, net.Mac, net.VhostSocket))
+			} else {
+				cloudHypervisorCmd = append(cloudHypervisorCmd, fmt.Sprintf("id=%s,mac=%s,tap=%s", net.Id, net.Mac, net.Tap))
+			}
 		}
 	}
 
@@ -164,6 +171,10 @@ func buildVMConfig(ctx context.Context, vm *virtv1alpha1.VirtualMachine) (*cloud
 				HostCpus: []int{pcpus[i]},
 			})
 		}
+	}
+
+	if vm.Spec.Instance.Memory.Hugepages != nil {
+		vmConfig.Memory.Hugepages = true
 	}
 
 	for _, disk := range vm.Spec.Instance.Disks {
@@ -279,6 +290,20 @@ func buildVMConfig(ctx context.Context, vm *virtv1alpha1.VirtualMachine) (*cloud
 						vmConfig.Devices = append(vmConfig.Devices, &sriovDeviceConfig)
 					}
 				}
+			case iface.VhostUser != nil:
+				socket := os.Getenv("VHOST_USER_SOCKET")
+				if socket == "" {
+					return nil, fmt.Errorf("vhost-user socket path not found")
+				}
+				netConfig := cloudhypervisor.NetConfig{
+					Id:          iface.Name,
+					Mac:         iface.MAC,
+					VhostUser:   true,
+					VhostMode:   "server",
+					VhostSocket: socket,
+				}
+				vmConfig.Net = append(vmConfig.Net, &netConfig)
+				vmConfig.Memory.Shared = true
 			}
 		}
 	}

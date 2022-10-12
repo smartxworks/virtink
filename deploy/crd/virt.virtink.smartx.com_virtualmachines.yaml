@@ -910,6 +910,8 @@ spec:
                           type: string
                         sriov:
                           type: object
+                        vhostUser:
+                          type: object
                       required:
                       - name
                       type: object
@@ -930,6 +932,15 @@ spec:
                     type: object
                   memory:
                     properties:
+                      hugepages:
+                        properties:
+                          pageSize:
+                            default: 1Gi
+                            enum:
+                            - 2Mi
+                            - 1Gi
+                            type: string
+                        type: object
                       size:
                         anyOf:
                         - type: integer
