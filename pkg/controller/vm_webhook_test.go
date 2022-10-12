@@ -20,7 +20,7 @@ func TestValidateVM(t *testing.T) {
 					CoresPerSocket: 1,
 				},
 				Memory: virtv1alpha1.Memory{
-					Size: func() *resource.Quantity { q := resource.MustParse("1Gi"); return &q }(),
+					Size: resource.MustParse("1Gi"),
 				},
 				Disks: []virtv1alpha1.Disk{{
 					Name: "vol-1",
@@ -170,6 +170,51 @@ func TestValidateVM(t *testing.T) {
 	}, {
 		vm: func() *virtv1alpha1.VirtualMachine {
 			vm := validVM.DeepCopy()
+			vm.Spec.Instance.Memory.Hugepages = &virtv1alpha1.Hugepages{
+				PageSize: "1Gi",
+			}
+			return vm
+		}(),
+		invalidFields: []string{"spec.resources", "spec.resources.requests.hugepages-1Gi", "spec.resources.limits.hugepages-1Gi"},
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			vm := validVM.DeepCopy()
+			vm.Spec.Instance.Memory.Hugepages = &virtv1alpha1.Hugepages{
+				PageSize: "1Gi",
+			}
+			vm.Spec.Resources = corev1.ResourceRequirements{
+				Requests: map[corev1.ResourceName]resource.Quantity{
+					corev1.ResourceMemory: resource.MustParse(memoryOverhead),
+					"hugepages-1Gi":       resource.MustParse("1025Mi"),
+				},
+				Limits: map[corev1.ResourceName]resource.Quantity{
+					"hugepages-1Gi": resource.MustParse("1025Mi"),
+				},
+			}
+			return vm
+		}(),
+		invalidFields: []string{"spec.resources.requests.hugepages-1Gi"},
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			vm := validVM.DeepCopy()
+			vm.Spec.Instance.Memory.Hugepages = &virtv1alpha1.Hugepages{
+				PageSize: "2Mi",
+			}
+			vm.Spec.Resources = corev1.ResourceRequirements{
+				Requests: map[corev1.ResourceName]resource.Quantity{
+					corev1.ResourceMemory: resource.MustParse(memoryOverhead),
+					"hugepages-2Mi":       resource.MustParse("1024Mi"),
+				},
+				Limits: map[corev1.ResourceName]resource.Quantity{
+					"hugepages-2Mi": resource.MustParse("1025Mi"),
+				},
+			}
+			return vm
+		}(),
+		invalidFields: []string{"spec.resources.limits.hugepages-2Mi"},
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			vm := validVM.DeepCopy()
 			vm.Spec.Instance.CPU.Sockets = 0
 			return vm
 		}(),
@@ -184,21 +229,52 @@ func TestValidateVM(t *testing.T) {
 	}, {
 		vm: func() *virtv1alpha1.VirtualMachine {
 			vm := validVM.DeepCopy()
-			vm.Spec.Instance.Memory.Size = nil
+			vm.Spec.Instance.Memory.Size = resource.MustParse("0")
 			return vm
 		}(),
 		invalidFields: []string{"spec.instance.memory.size"},
 	}, {
 		vm: func() *virtv1alpha1.VirtualMachine {
 			vm := validVM.DeepCopy()
-			vm.Spec.Instance.Memory.Size = func() *resource.Quantity { q := resource.MustParse("0"); return &q }()
+			vm.Spec.Instance.Memory.Size = resource.MustParse("-1Gi")
 			return vm
 		}(),
 		invalidFields: []string{"spec.instance.memory.size"},
 	}, {
 		vm: func() *virtv1alpha1.VirtualMachine {
 			vm := validVM.DeepCopy()
-			vm.Spec.Instance.Memory.Size = func() *resource.Quantity { q := resource.MustParse("-1Gi"); return &q }()
+			vm.Spec.Instance.Memory.Size = resource.MustParse("1025Mi")
+			vm.Spec.Instance.Memory.Hugepages = &virtv1alpha1.Hugepages{
+				PageSize: "1Gi",
+			}
+			vm.Spec.Resources = corev1.ResourceRequirements{
+				Requests: map[corev1.ResourceName]resource.Quantity{
+					corev1.ResourceMemory: resource.MustParse(memoryOverhead),
+					"hugepages-1Gi":       resource.MustParse("1025Mi"),
+				},
+				Limits: map[corev1.ResourceName]resource.Quantity{
+					"hugepages-1Gi": resource.MustParse("1025Mi"),
+				},
+			}
+			return vm
+		}(),
+		invalidFields: []string{"spec.instance.memory.size"},
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			vm := validVM.DeepCopy()
+			vm.Spec.Instance.Memory.Size = resource.MustParse("511Mi")
+			vm.Spec.Instance.Memory.Hugepages = &virtv1alpha1.Hugepages{
+				PageSize: "2Mi",
+			}
+			vm.Spec.Resources = corev1.ResourceRequirements{
+				Requests: map[corev1.ResourceName]resource.Quantity{
+					corev1.ResourceMemory: resource.MustParse(memoryOverhead),
+					"hugepages-2Mi":       resource.MustParse("511Mi"),
+				},
+				Limits: map[corev1.ResourceName]resource.Quantity{
+					"hugepages-2Mi": resource.MustParse("511Mi"),
+				},
+			}
 			return vm
 		}(),
 		invalidFields: []string{"spec.instance.memory.size"},
@@ -279,7 +355,13 @@ func TestValidateVM(t *testing.T) {
 		}(),
 		invalidFields: []string{"spec.instance.interfaces[0].sriov"},
 	}, {
-
+		vm: func() *virtv1alpha1.VirtualMachine {
+			vm := validVM.DeepCopy()
+			vm.Spec.Instance.Interfaces[0].InterfaceBindingMethod.VhostUser = &virtv1alpha1.InterfaceVhostUser{}
+			return vm
+		}(),
+		invalidFields: []string{"spec.instance.interfaces[0].vhostUser"},
+	}, {
 		vm: func() *virtv1alpha1.VirtualMachine {
 			vm := validVM.DeepCopy()
 			vm.Spec.Volumes[0].Name = ""
@@ -370,6 +452,29 @@ func TestMutateVM(t *testing.T) {
 		}(),
 		assert: func(vm *virtv1alpha1.VirtualMachine) {
 			assert.Equal(t, "1Gi", vm.Spec.Instance.Memory.Size.String())
+		},
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			vm := oldVM.DeepCopy()
+			vm.Spec.Resources.Requests = nil
+			return vm
+		}(),
+		assert: func(vm *virtv1alpha1.VirtualMachine) {
+			assert.Equal(t, "1Gi", vm.Spec.Instance.Memory.Size.String())
+		},
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			vm := oldVM.DeepCopy()
+			vm.Spec.Resources.Requests = nil
+			vm.Spec.Instance.Memory.Hugepages = &virtv1alpha1.Hugepages{
+				PageSize: "1Gi",
+			}
+			return vm
+		}(),
+		assert: func(vm *virtv1alpha1.VirtualMachine) {
+			assert.True(t, vm.Spec.Resources.Limits["hugepages-1Gi"].Equal(resource.MustParse("1Gi")))
+			assert.True(t, vm.Spec.Resources.Requests["hugepages-1Gi"].Equal(resource.MustParse("1Gi")))
+			assert.True(t, vm.Spec.Resources.Requests[corev1.ResourceMemory].Equal(resource.MustParse(memoryOverhead)))
 		},
 	}, {
 		vm: func() *virtv1alpha1.VirtualMachine {

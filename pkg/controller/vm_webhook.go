@@ -11,6 +11,7 @@ import (
 	"github.com/r3labs/diff/v2"
 	admissionv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -19,6 +20,8 @@ import (
 )
 
 // +kubebuilder:webhook:path=/mutate-v1alpha1-virtualmachine,mutating=true,failurePolicy=fail,sideEffects=None,groups=virt.virtink.smartx.com,resources=virtualmachines,verbs=create;update,versions=v1alpha1,name=mutate.virtualmachine.v1alpha1.virt.virtink.smartx.com,admissionReviewVersions={v1,v1beta1}
+
+var memoryOverhead = "256Mi"
 
 type VMMutator struct {
 	decoder *admission.Decoder
@@ -75,8 +78,35 @@ func MutateVM(ctx context.Context, vm *virtv1alpha1.VirtualMachine, oldVM *virtv
 		vm.Spec.Instance.CPU.CoresPerSocket = 1
 	}
 
-	if vm.Spec.Instance.Memory.Size == nil {
-		vm.Spec.Instance.Memory.Size = vm.Spec.Resources.Requests.Memory()
+	if vm.Spec.Instance.Memory.Size.IsZero() {
+		if !vm.Spec.Resources.Requests.Memory().IsZero() {
+			vm.Spec.Instance.Memory.Size = vm.Spec.Resources.Requests.Memory().DeepCopy()
+		} else {
+			vm.Spec.Instance.Memory.Size = resource.MustParse("1Gi")
+		}
+	}
+
+	if vm.Spec.Instance.Memory.Hugepages != nil {
+		hugepagesSize := fmt.Sprintf("hugepages-%s", vm.Spec.Instance.Memory.Hugepages.PageSize)
+
+		if vm.Spec.Resources.Limits == nil {
+			vm.Spec.Resources.Limits = corev1.ResourceList{}
+		}
+		hugepagesLimit, exist := vm.Spec.Resources.Limits[corev1.ResourceName(hugepagesSize)]
+		if !exist {
+			hugepagesLimit = vm.Spec.Instance.Memory.Size.DeepCopy()
+			vm.Spec.Resources.Limits[corev1.ResourceName(hugepagesSize)] = hugepagesLimit
+		}
+		if vm.Spec.Resources.Requests == nil {
+			vm.Spec.Resources.Requests = corev1.ResourceList{}
+		}
+		if _, exist := vm.Spec.Resources.Requests[corev1.ResourceName(hugepagesSize)]; !exist {
+			vm.Spec.Resources.Requests[corev1.ResourceName(hugepagesSize)] = hugepagesLimit.DeepCopy()
+		}
+
+		if vm.Spec.Resources.Limits.Cpu().IsZero() && vm.Spec.Resources.Limits.Memory().IsZero() && vm.Spec.Resources.Requests.Cpu().IsZero() && vm.Spec.Resources.Requests.Memory().IsZero() {
+			vm.Spec.Resources.Requests[corev1.ResourceMemory] = resource.MustParse(memoryOverhead)
+		}
 	}
 
 	for i := range vm.Spec.Instance.Interfaces {
@@ -88,7 +118,7 @@ func MutateVM(ctx context.Context, vm *virtv1alpha1.VirtualMachine, oldVM *virtv
 			vm.Spec.Instance.Interfaces[i].MAC = mac.String()
 		}
 
-		if vm.Spec.Instance.Interfaces[i].Bridge == nil && vm.Spec.Instance.Interfaces[i].Masquerade == nil && vm.Spec.Instance.Interfaces[i].SRIOV == nil {
+		if vm.Spec.Instance.Interfaces[i].Bridge == nil && vm.Spec.Instance.Interfaces[i].Masquerade == nil && vm.Spec.Instance.Interfaces[i].SRIOV == nil && vm.Spec.Instance.Interfaces[i].VhostUser == nil {
 			vm.Spec.Instance.Interfaces[i].InterfaceBindingMethod = virtv1alpha1.InterfaceBindingMethod{
 				Bridge: &virtv1alpha1.InterfaceBridge{},
 			}
@@ -172,29 +202,57 @@ func ValidateVMSpec(ctx context.Context, spec *virtv1alpha1.VirtualMachineSpec, 
 		if spec.Resources.Requests.Cpu().IsZero() {
 			errs = append(errs, field.Required(cpuRequestField, ""))
 		} else if spec.Resources.Requests.Cpu().Value() != int64(spec.Instance.CPU.Sockets*spec.Instance.CPU.CoresPerSocket) {
-			errs = append(errs, field.Invalid(cpuRequestField, spec.Resources.Requests.Cpu(), "must equal to number of vCPUs"))
+			errs = append(errs, field.Invalid(cpuRequestField, spec.Resources.Requests.Cpu().String(), "must equal to number of vCPUs"))
 		}
 
 		cpuLimitField := fieldPath.Child("resources.limits").Child(string(corev1.ResourceCPU))
 		if spec.Resources.Limits.Cpu().IsZero() {
 			errs = append(errs, field.Required(cpuLimitField, ""))
 		} else if !spec.Resources.Limits.Cpu().Equal(*spec.Resources.Requests.Cpu()) {
-			errs = append(errs, field.Invalid(cpuLimitField, spec.Resources.Limits.Cpu(), "must equal to CPU request"))
+			errs = append(errs, field.Invalid(cpuLimitField, spec.Resources.Limits.Cpu().String(), "must equal to CPU request"))
 		}
 
 		memoryRequestField := fieldPath.Child("resources.requests").Child(string(corev1.ResourceMemory))
+		// TODO: add overhead without hugepages
+		memRequired := spec.Instance.Memory.Size.DeepCopy()
+		if spec.Instance.Memory.Hugepages != nil {
+			memRequired = resource.MustParse(memoryOverhead)
+		}
 		if spec.Resources.Requests.Memory().IsZero() {
 			errs = append(errs, field.Required(memoryRequestField, ""))
-		} else if spec.Resources.Requests.Memory().Cmp(*spec.Instance.Memory.Size) < 0 {
-			// TODO: add overhead
-			errs = append(errs, field.Invalid(memoryRequestField, spec.Resources.Requests.Memory(), "must not be less than memory size"))
+		} else if spec.Resources.Requests.Memory().Cmp(memRequired) < 0 {
+			errs = append(errs, field.Invalid(memoryRequestField, spec.Resources.Requests.Memory().String(), fmt.Sprintf("must not be less than %s", memRequired.String())))
 		}
 
 		memoryLimitField := fieldPath.Child("resources.limits").Child(string(corev1.ResourceMemory))
 		if spec.Resources.Limits.Memory().IsZero() {
 			errs = append(errs, field.Required(memoryLimitField, ""))
 		} else if !spec.Resources.Limits.Memory().Equal(*spec.Resources.Requests.Memory()) {
-			errs = append(errs, field.Invalid(memoryLimitField, spec.Resources.Limits.Memory(), "must equal to memory request"))
+			errs = append(errs, field.Invalid(memoryLimitField, spec.Resources.Limits.Memory().String(), "must equal to memory request"))
+		}
+	}
+
+	if spec.Instance.Memory.Hugepages != nil {
+		resourcesField := fieldPath.Child("resources")
+		if spec.Resources.Limits.Cpu().IsZero() && spec.Resources.Limits.Memory().IsZero() && spec.Resources.Requests.Cpu().IsZero() && spec.Resources.Requests.Memory().IsZero() {
+			errs = append(errs, field.Forbidden(resourcesField, "hugepages require cpu or memory"))
+		}
+
+		hugepagesSize := fmt.Sprintf("hugepages-%s", spec.Instance.Memory.Hugepages.PageSize)
+		hugepagesRequestField := resourcesField.Child("requests").Child(hugepagesSize)
+		hugepagesRequest, exist := spec.Resources.Requests[corev1.ResourceName(hugepagesSize)]
+		if !exist {
+			errs = append(errs, field.Required(hugepagesRequestField, ""))
+		} else if !hugepagesRequest.Equal(spec.Instance.Memory.Size) {
+			errs = append(errs, field.Invalid(hugepagesRequestField, hugepagesRequest.String(), "must equal to instance memory size"))
+		}
+
+		hugepagesLimitField := resourcesField.Child("limits").Child(hugepagesSize)
+		hugepagesLimit, exist := spec.Resources.Limits[corev1.ResourceName(hugepagesSize)]
+		if !exist {
+			errs = append(errs, field.Required(hugepagesLimitField, ""))
+		} else if !hugepagesLimit.Equal(hugepagesRequest) {
+			errs = append(errs, field.Invalid(hugepagesLimitField, hugepagesLimit.String(), "must equal to hugepages request"))
 		}
 	}
 
@@ -263,6 +321,11 @@ func ValidateInstance(ctx context.Context, instance *virtv1alpha1.Instance, fiel
 			errs = append(errs, field.Duplicate(fieldPath.Child("name"), iface.Name))
 		}
 		ifaceNames[iface.Name] = struct{}{}
+		if iface.InterfaceBindingMethod.VhostUser != nil {
+			if !instance.CPU.DedicatedCPUPlacement || instance.Memory.Hugepages == nil {
+				errs = append(errs, field.Forbidden(fieldPath.Child("vhostUser"), "may not use vhost-user interface without dedicated CPU placement and hugepages"))
+			}
+		}
 		errs = append(errs, ValidateInterface(ctx, &iface, fieldPath)...)
 	}
 
@@ -292,13 +355,18 @@ func ValidateMemory(ctx context.Context, memory *virtv1alpha1.Memory, fieldPath 
 		return errs
 	}
 
-	if memory.Size == nil {
-		errs = append(errs, field.Required(fieldPath.Child("size"), ""))
-		return errs
+	memSize := memory.Size.Value()
+	if memSize <= 0 {
+		errs = append(errs, field.Invalid(fieldPath.Child("size"), memSize, "must be greater than 0"))
 	}
-	if memory.Size.Value() <= 0 {
-		errs = append(errs, field.Invalid(fieldPath.Child("size"), memory.Size.Value(), "must be greater than 0"))
+	if memory.Hugepages != nil {
+		q := resource.MustParse(memory.Hugepages.PageSize)
+		hugepagesSize := q.Value()
+		if memSize%hugepagesSize != 0 {
+			errs = append(errs, field.Invalid(fieldPath.Child("size"), memSize, fmt.Sprintf("%d is not positive integer multiple of %s", memSize, memory.Hugepages.PageSize)))
+		}
 	}
+
 	return errs
 }
 
@@ -398,6 +466,13 @@ func ValidateInterfaceBindingMethod(ctx context.Context, bindingMethod *virtv1al
 			errs = append(errs, field.Forbidden(fieldPath.Child("sriov"), "may not specify more than 1 binding method"))
 		}
 	}
+	if bindingMethod.VhostUser != nil {
+		cnt++
+		if cnt > 1 {
+			errs = append(errs, field.Forbidden(fieldPath.Child("vhostUser"), "may not specify more than 1 binding method"))
+		}
+	}
+
 	if cnt == 0 {
 		errs = append(errs, field.Required(fieldPath, "at least 1 binding method is required"))
 	}

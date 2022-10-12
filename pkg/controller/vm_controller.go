@@ -323,6 +323,22 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 		})
 	}
 
+	if vm.Spec.Instance.Memory.Hugepages != nil {
+		vmPod.Spec.Volumes = append(vmPod.Spec.Volumes, corev1.Volume{
+			Name: "hugepages",
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{
+					Medium: "HugePages",
+				},
+			},
+		})
+		volumeMount := corev1.VolumeMount{
+			Name:      "hugepages",
+			MountPath: "/dev/hugepages",
+		}
+		vmPod.Spec.Containers[0].VolumeMounts = append(vmPod.Spec.Containers[0].VolumeMounts, volumeMount)
+	}
+
 	for _, volume := range vm.Spec.Volumes {
 		switch {
 		case volume.ContainerDisk != nil:
@@ -553,6 +569,47 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 					},
 				},
 			})
+
+			if iface.VhostUser != nil {
+				type nadConfig struct {
+					Type                      string `json:"type"`
+					VhostUserSocketVolumeName string `json:"vhost_user_socket_volume_name,omitempty"`
+					VhostUserSocketName       string `json:"vhost_user_socket_name,omitempty"`
+				}
+
+				var cfg nadConfig
+				if err := json.Unmarshal([]byte(nad.Spec.Config), &cfg); err != nil {
+					return nil, fmt.Errorf("unmarshal NAD config: %s", err)
+				}
+
+				switch cfg.Type {
+				case "kube-ovn":
+					if vmPod.Spec.NodeSelector == nil {
+						vmPod.Spec.NodeSelector = map[string]string{}
+					}
+					vmPod.Spec.NodeSelector["ovn.kubernetes.io/ovs_dp_type"] = "userspace"
+					vmPod.Annotations["ovn-dpdk.default.ovn.kubernetes.io/mac_address"] = iface.MAC
+
+					vmPod.Spec.Volumes = append(vmPod.Spec.Volumes, corev1.Volume{
+						Name: cfg.VhostUserSocketVolumeName,
+						VolumeSource: corev1.VolumeSource{
+							EmptyDir: &corev1.EmptyDirVolumeSource{},
+						},
+					})
+					volumeMount := corev1.VolumeMount{
+						Name:      cfg.VhostUserSocketVolumeName,
+						MountPath: "/var/run/vhost-user",
+					}
+					vmPod.Spec.Containers[0].VolumeMounts = append(vmPod.Spec.Containers[0].VolumeMounts, volumeMount)
+
+					vmPod.Spec.Containers[0].Env = append(vmPod.Spec.Containers[0].Env, corev1.EnvVar{
+						Name:  "VHOST_USER_SOCKET",
+						Value: fmt.Sprintf("/var/run/vhost-user/%s", cfg.VhostUserSocketName),
+					})
+				default:
+					return nil, fmt.Errorf("CNI plugin %s is not supported for vhost-uesr", cfg.Type)
+				}
+			}
 		default:
 			// ignored
 		}
@@ -654,6 +711,14 @@ func (r *VMReconciler) calculateMigratableCondition(ctx context.Context, vm *vir
 					Status:  metav1.ConditionFalse,
 					Reason:  "InterfaceNotMigratable",
 					Message: "migration is disabled when VM has a SR-IOV interface",
+				}, nil
+			}
+			if iface.VhostUser != nil {
+				return &metav1.Condition{
+					Type:    string(virtv1alpha1.VirtualMachineMigratable),
+					Status:  metav1.ConditionFalse,
+					Reason:  "InterfaceNotMigratable",
+					Message: "migration is disable when VM has a vhost-user interface",
 				}, nil
 			}
 		}

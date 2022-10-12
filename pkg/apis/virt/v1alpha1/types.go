@@ -67,7 +67,14 @@ type CPU struct {
 }
 
 type Memory struct {
-	Size *resource.Quantity `json:"size,omitempty"`
+	Size      resource.Quantity `json:"size,omitempty"`
+	Hugepages *Hugepages        `json:"hugepages,omitempty"`
+}
+
+type Hugepages struct {
+	// +kubebuilder:default="1Gi"
+	// +kubebuilder:validation:Enum="2Mi";"1Gi"
+	PageSize string `json:"pageSize,omitempty"`
 }
 
 type Kernel struct {
@@ -95,6 +102,7 @@ type InterfaceBindingMethod struct {
 	Bridge     *InterfaceBridge     `json:"bridge,omitempty"`
 	Masquerade *InterfaceMasquerade `json:"masquerade,omitempty"`
 	SRIOV      *InterfaceSRIOV      `json:"sriov,omitempty"`
+	VhostUser  *InterfaceVhostUser  `json:"vhostUser,omitempty"`
 }
 
 type InterfaceBridge struct {
@@ -105,6 +113,9 @@ type InterfaceMasquerade struct {
 }
 
 type InterfaceSRIOV struct {
+}
+
+type InterfaceVhostUser struct {
 }
 
 type Volume struct {
