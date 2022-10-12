@@ -446,67 +446,51 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 				Args:            []string{volumeMount.MountPath + "/rootfs.raw", strconv.FormatInt(volume.ContainerRootfs.Size.Value(), 10)},
 				VolumeMounts:    []corev1.VolumeMount{volumeMount},
 			})
-		case volume.PersistentVolumeClaim != nil:
-			vmPod.Spec.Volumes = append(vmPod.Spec.Volumes, corev1.Volume{
-				Name: volume.Name,
-				VolumeSource: corev1.VolumeSource{
-					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-						ClaimName: volume.PersistentVolumeClaim.ClaimName,
-					},
-				},
-			})
-
-			pvcKey := types.NamespacedName{
-				Namespace: vm.Namespace,
-				Name:      volume.PersistentVolumeClaim.ClaimName,
-			}
-			var pvc corev1.PersistentVolumeClaim
-			if err := r.Client.Get(ctx, pvcKey, &pvc); err != nil {
-				return nil, fmt.Errorf("get PVC: %s", err)
-			}
-
-			if pvc.Spec.VolumeMode != nil && *pvc.Spec.VolumeMode == corev1.PersistentVolumeBlock {
-				volumeDevice := corev1.VolumeDevice{
-					Name:       volume.Name,
-					DevicePath: "/mnt/" + volume.Name,
-				}
-				vmPod.Spec.Containers[0].VolumeDevices = append(vmPod.Spec.Containers[0].VolumeDevices, volumeDevice)
+		case volume.PersistentVolumeClaim != nil, volume.DataVolume != nil:
+			var pvcName string
+			if volume.PersistentVolumeClaim != nil {
+				pvcName = volume.PersistentVolumeClaim.ClaimName
 			} else {
-				volumeMount := corev1.VolumeMount{
-					Name:      volume.Name,
-					MountPath: "/mnt/" + volume.Name,
-				}
-				vmPod.Spec.Containers[0].VolumeMounts = append(vmPod.Spec.Containers[0].VolumeMounts, volumeMount)
-			}
-		case volume.DataVolume != nil:
-			var dv cdiv1beta1.DataVolume
-			dvKey := types.NamespacedName{
-				Name:      volume.DataVolume.VolumeName,
-				Namespace: vm.Namespace,
-			}
-			if err := r.Client.Get(ctx, dvKey, &dv); err != nil {
-				return nil, err
-			}
-			if dv.Status.Phase != cdiv1beta1.Succeeded {
-				return nil, fmt.Errorf("data volume is not ready: %s", volume.DataVolume.VolumeName)
+				pvcName = volume.DataVolume.VolumeName
 			}
 
 			vmPod.Spec.Volumes = append(vmPod.Spec.Volumes, corev1.Volume{
 				Name: volume.Name,
 				VolumeSource: corev1.VolumeSource{
 					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-						ClaimName: dv.Status.ClaimName,
+						ClaimName: pvcName,
 					},
 				},
 			})
 
 			pvcKey := types.NamespacedName{
 				Namespace: vm.Namespace,
-				Name:      dv.Status.ClaimName,
+				Name:      pvcName,
 			}
 			var pvc corev1.PersistentVolumeClaim
 			if err := r.Client.Get(ctx, pvcKey, &pvc); err != nil {
 				return nil, fmt.Errorf("get PVC: %s", err)
+			}
+
+			if volume.DataVolume != nil {
+				var getDataVolumeFunc = func(name, namespace string) (*cdiv1beta1.DataVolume, error) {
+					var dv cdiv1beta1.DataVolume
+					dvKey := types.NamespacedName{
+						Name:      volume.DataVolume.VolumeName,
+						Namespace: vm.Namespace,
+					}
+					if err := r.Client.Get(ctx, dvKey, &dv); err != nil {
+						return nil, err
+					}
+					return &dv, nil
+				}
+				ready, err := cdiv1beta1.IsPopulated(&pvc, getDataVolumeFunc)
+				if err != nil {
+					return nil, err
+				}
+				if !ready {
+					return nil, fmt.Errorf("data volume is not ready: %s", volume.DataVolume.VolumeName)
+				}
 			}
 
 			if pvc.Spec.VolumeMode != nil && *pvc.Spec.VolumeMode == corev1.PersistentVolumeBlock {
