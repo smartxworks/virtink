@@ -281,7 +281,10 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 						Add: []corev1.Capability{"SYS_ADMIN", "NET_ADMIN", "SYS_RESOURCE"},
 					},
 				},
-				Args: []string{"--vm-data", base64.StdEncoding.EncodeToString(vmJSON)},
+				Env: []corev1.EnvVar{{
+					Name:  "VM_DATA",
+					Value: base64.StdEncoding.EncodeToString(vmJSON),
+				}},
 				VolumeMounts: []corev1.VolumeMount{{
 					Name:      "virtink",
 					MountPath: "/var/run/virtink",
@@ -647,7 +650,10 @@ func (r *VMReconciler) buildTargetVMPod(ctx context.Context, vm *virtv1alpha1.Vi
 	if err != nil {
 		return nil, err
 	}
-	pod.Spec.Containers[0].Args = append(pod.Spec.Containers[0].Args, "--receive-migration")
+	pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, corev1.EnvVar{
+		Name:  "RECEIVE_MIGRATION",
+		Value: "true",
+	})
 
 	if pod.Spec.Affinity == nil {
 		pod.Spec.Affinity = &corev1.Affinity{}

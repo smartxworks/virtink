@@ -3,10 +3,13 @@ package daemon
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -80,14 +83,42 @@ func (r *VMReconciler) reconcile(ctx context.Context, vm *virtv1alpha1.VirtualMa
 
 	switch vm.Status.Phase {
 	case virtv1alpha1.VirtualMachineScheduled:
-		vmInfo, err := r.getCloudHypervisorClient(vm).VmInfo(ctx)
+		chClient := r.getCloudHypervisorClient(vm)
+		vmInfo, err := chClient.VmInfo(ctx)
 		if err != nil {
-			// TODO: ignore VM not found error
-			return fmt.Errorf("get VM info: %s", err)
-		}
+			if !isVMNotCreatedError(err) {
+				return fmt.Errorf("get VM info: %s", err)
+			}
 
-		if vmInfo.State == "Running" || vmInfo.State == "Paused" {
-			vm.Status.Phase = virtv1alpha1.VirtualMachineRunning
+			vmConfigFilePath := filepath.Join(getVMDataDirPath(vm), "vm-config.json")
+			vmConfigFile, err := os.Open(vmConfigFilePath)
+			if err != nil {
+				if os.IsNotExist(err) {
+					return errors.New("waiting prerunner prepare VM config")
+				}
+				return err
+			}
+			var vmConfig cloudhypervisor.VmConfig
+			if err := json.NewDecoder(vmConfigFile).Decode(&vmConfig); err != nil {
+				return err
+			}
+			if err := chClient.VmCreate(ctx, &vmConfig); err != nil {
+				return fmt.Errorf("create VM: %s", err)
+			}
+			if err := chClient.VmBoot(ctx); err != nil {
+				return err
+			}
+		} else {
+			switch vmInfo.State {
+			case "Created":
+				if err := chClient.VmBoot(ctx); err != nil {
+					return err
+				}
+			case "Running", "Paused":
+				vm.Status.Phase = virtv1alpha1.VirtualMachineRunning
+			case "Shutdown":
+				vm.Status.Phase = virtv1alpha1.VirtualMachineFailed
+			}
 		}
 	case virtv1alpha1.VirtualMachineRunning:
 		if vm.Status.Migration == nil {
@@ -164,6 +195,19 @@ func (r *VMReconciler) reconcile(ctx context.Context, vm *virtv1alpha1.VirtualMa
 			switch vm.Status.Migration.Phase {
 			case virtv1alpha1.VirtualMachineMigrationScheduled:
 				if vm.Status.Migration.TargetNodeName == r.NodeName {
+					if err := wait.PollImmediate(time.Second, 3*time.Second, func() (done bool, err error) {
+						if _, err := os.Stat(filepath.Join(getMigrationTargetVMSocketDirPath(vm), "ch.sock")); err != nil {
+							if !os.IsNotExist(err) {
+								return false, err
+							}
+							return false, nil
+						}
+						return true, nil
+					}); err != nil {
+						r.Recorder.Eventf(vm, corev1.EventTypeWarning, "FailedMigrate", "timeout for waiting cloud-hypervisor be running")
+						vm.Status.Migration.Phase = virtv1alpha1.VirtualMachineMigrationFailed
+						return nil
+					}
 					ctx, cancel := context.WithCancel(context.Background())
 					migrationControlBlock.ReceiveMigrationCancelFunc = cancel
 
@@ -185,10 +229,7 @@ func (r *VMReconciler) reconcile(ctx context.Context, vm *virtv1alpha1.VirtualMa
 						if err := wait.PollImmediate(time.Second, 10*time.Second, func() (done bool, err error) {
 							select {
 							case err = <-migrationControlBlock.ReceiveMigrationErrCh:
-								log.Error(err, "receive migration")
-								r.Recorder.Eventf(vm, corev1.EventTypeWarning, "FailedMigrate", "Failed to receive migration on %s: %s", vm.Status.Migration.TargetNodeName, err)
-								vm.Status.Migration.Phase = virtv1alpha1.VirtualMachineMigrationFailed
-								return true, nil
+								return false, err
 							default:
 								if _, err := os.Stat(receiveMigrationSocketPath); err != nil {
 									if os.IsNotExist(err) {
@@ -199,7 +240,9 @@ func (r *VMReconciler) reconcile(ctx context.Context, vm *virtv1alpha1.VirtualMa
 								return true, nil
 							}
 						}); err != nil {
-							return err
+							r.Recorder.Eventf(vm, corev1.EventTypeWarning, "FailedMigrate", "Failed to receive migration on %s: %s", vm.Status.Migration.TargetNodeName, err)
+							vm.Status.Migration.Phase = virtv1alpha1.VirtualMachineMigrationFailed
+							return nil
 						}
 					}
 
@@ -235,7 +278,7 @@ func (r *VMReconciler) reconcile(ctx context.Context, vm *virtv1alpha1.VirtualMa
 							return tlsutil.LoadCert(daemonCertDirPath)
 						},
 					}
-					if err := r.RelaySocketToTCP(ctx, filepath.Join(getVMSocketDirPath(vm), "tx.sock"), fmt.Sprintf("%s:%d", vm.Status.Migration.TargetNodeIP, vm.Status.Migration.TargetNodePort), tlsConfig); err != nil {
+					if err := r.RelaySocketToTCP(ctx, filepath.Join(getVMDataDirPath(vm), "tx.sock"), fmt.Sprintf("%s:%d", vm.Status.Migration.TargetNodeIP, vm.Status.Migration.TargetNodePort), tlsConfig); err != nil {
 						return fmt.Errorf("start source relay: %s", err)
 					}
 
@@ -318,10 +361,10 @@ func (r *VMReconciler) reconcile(ctx context.Context, vm *virtv1alpha1.VirtualMa
 }
 
 func (r *VMReconciler) getCloudHypervisorClient(vm *virtv1alpha1.VirtualMachine) *cloudhypervisor.Client {
-	return cloudhypervisor.NewClient(filepath.Join(getVMSocketDirPath(vm), "ch.sock"))
+	return cloudhypervisor.NewClient(filepath.Join(getVMDataDirPath(vm), "ch.sock"))
 }
 
-func getVMSocketDirPath(vm *virtv1alpha1.VirtualMachine) string {
+func getVMDataDirPath(vm *virtv1alpha1.VirtualMachine) string {
 	return filepath.Join("var/lib/kubelet/pods", string(vm.Status.VMPodUID), "volumes/kubernetes.io~empty-dir/virtink/")
 }
 
@@ -352,4 +395,8 @@ type migrationControlBlock struct {
 	SendMigrationCancelFunc    context.CancelFunc
 	ReceiveMigrationErrCh      <-chan error
 	ReceiveMigrationCancelFunc context.CancelFunc
+}
+
+func isVMNotCreatedError(err error) bool {
+	return strings.Contains(err.Error(), "VmNotCreated")
 }

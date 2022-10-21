@@ -5,7 +5,6 @@ import (
 	_ "embed"
 	"encoding/base64"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"log"
 	"net"
@@ -19,6 +18,7 @@ import (
 	"github.com/docker/libnetwork/resolvconf"
 	"github.com/docker/libnetwork/types"
 	netv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
+	"github.com/namsral/flag"
 	"github.com/subgraph/libmacouflage"
 	"github.com/vishvananda/netlink"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -51,89 +51,41 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to build VM config: %s", err)
 	}
+
 	if receiveMigration {
-		cloudHypervisorCmd := []string{"cloud-hypervisor", "--api-socket", "/var/run/virtink/ch.sock"}
-		fmt.Println(strings.Join(cloudHypervisorCmd, " "))
 		return
 	}
 
-	cloudHypervisorCmd := []string{"cloud-hypervisor", "--api-socket", "/var/run/virtink/ch.sock", "--console", "pty", "--serial", "tty"}
-	cloudHypervisorCmd = append(cloudHypervisorCmd, "--kernel", vmConfig.Payload.Kernel)
-	if vmConfig.Payload.Cmdline != "" {
-		cloudHypervisorCmd = append(cloudHypervisorCmd, "--cmdline", fmt.Sprintf("'%s'", vmConfig.Payload.Cmdline))
+	vmConfigFile, err := os.Create("/var/run/virtink/vm-config.json")
+	if err != nil {
+		log.Fatalf("Failed to create VM config file: %s", err)
 	}
 
-	vcpuToPCPU := []string{}
-	for _, affinity := range vmConfig.Cpus.Affinity {
-		vcpuToPCPU = append(vcpuToPCPU, fmt.Sprintf("%d@[%d]", affinity.Vcpu, affinity.HostCpus[0]))
+	if err := json.NewEncoder(vmConfigFile).Encode(vmConfig); err != nil {
+		log.Fatalf("Failed to write VM config to file: %s", err)
 	}
-	cpuAffinity := ""
-	if len(vcpuToPCPU) > 0 {
-		cpuAffinity = fmt.Sprintf("[%s]", strings.Join(vcpuToPCPU, ","))
-	}
-	cloudHypervisorCmd = append(cloudHypervisorCmd, "--cpus", fmt.Sprintf("boot=%d,topology=%d:%d:%d:%d,affinity=%s",
-		vmConfig.Cpus.BootVcpus, vmConfig.Cpus.Topology.ThreadsPerCore, vmConfig.Cpus.Topology.CoresPerDie,
-		vmConfig.Cpus.Topology.DiesPerPackage, vmConfig.Cpus.Topology.Packages, cpuAffinity))
+	vmConfigFile.Close()
 
-	memoryArg := fmt.Sprintf("size=%d", vmConfig.Memory.Size)
-	if vmConfig.Memory.Shared {
-		memoryArg = memoryArg + ",shared=on"
-	}
-	if vmConfig.Memory.Hugepages {
-		memoryArg = memoryArg + ",hugepages=true"
-	}
-	cloudHypervisorCmd = append(cloudHypervisorCmd, "--memory", memoryArg)
-
-	if len(vmConfig.Disks) > 0 {
-		cloudHypervisorCmd = append(cloudHypervisorCmd, "--disk")
-		for _, disk := range vmConfig.Disks {
-			arg := fmt.Sprintf("id=%s,path=%s", disk.Id, disk.Path)
-			if disk.Readonly {
-				arg = arg + ",readonly=on"
-			}
-			if disk.Direct {
-				arg = arg + ",direct=on"
-			}
-			cloudHypervisorCmd = append(cloudHypervisorCmd, arg)
-		}
-	}
-
-	if len(vmConfig.Fs) > 0 {
-		cloudHypervisorCmd = append(cloudHypervisorCmd, "--fs")
-		for _, fs := range vmConfig.Fs {
-			arg := fmt.Sprintf("id=%s,socket=%s,tag=%s", fs.Id, fs.Socket, fs.Tag)
-			cloudHypervisorCmd = append(cloudHypervisorCmd, arg)
-		}
-	}
-
-	if len(vmConfig.Net) > 0 {
-		cloudHypervisorCmd = append(cloudHypervisorCmd, "--net")
-		for _, net := range vmConfig.Net {
-			if net.VhostUser {
-				cloudHypervisorCmd = append(cloudHypervisorCmd, fmt.Sprintf("id=%s,mac=%s,mtu=%d,vhost_user=true,vhost_mode=server,socket=%s", net.Id, net.Mac, net.Mtu, net.VhostSocket))
-			} else {
-				cloudHypervisorCmd = append(cloudHypervisorCmd, fmt.Sprintf("id=%s,mac=%s,tap=%s,mtu=%d", net.Id, net.Mac, net.Tap, net.Mtu))
-			}
-		}
-	}
-
+	// TODO set prlimit for cloud-hypervisor process by PID
 	if len(vmConfig.Devices) > 0 {
-		cloudHypervisorCmd = append([]string{"prlimit", fmt.Sprintf("--memlock=%v", vmConfig.Memory.Size+extraVFIOMemoryLockSize.Value())}, cloudHypervisorCmd...)
-		cloudHypervisorCmd = append(cloudHypervisorCmd, "--device")
-		for _, device := range vmConfig.Devices {
-			cloudHypervisorCmd = append(cloudHypervisorCmd, fmt.Sprintf("id=%s,path=%s", device.Id, device.Path))
-		}
+		//cloudHypervisorCmd = append([]string{"prlimit", fmt.Sprintf("--memlock=%v", vmConfig.Memory.Size+extraVFIOMemoryLockSize.Value())}, cloudHypervisorCmd...)
 	}
-
-	fmt.Println(strings.Join(cloudHypervisorCmd, " "))
+	log.Println("Succeeded to setup")
 }
 
 func buildVMConfig(ctx context.Context, vm *virtv1alpha1.VirtualMachine) (*cloudhypervisor.VmConfig, error) {
 	vmConfig := cloudhypervisor.VmConfig{
+		Console: &cloudhypervisor.ConsoleConfig{
+			Mode: "Pty",
+		},
+		Serial: &cloudhypervisor.ConsoleConfig{
+			Mode: "Tty",
+		},
 		Payload: &cloudhypervisor.PayloadConfig{
 			Kernel: "/var/lib/cloud-hypervisor/hypervisor-fw",
 		},
 		Cpus: &cloudhypervisor.CpusConfig{
+			MaxVcpus:  int(vm.Spec.Instance.CPU.Sockets * vm.Spec.Instance.CPU.CoresPerSocket),
 			BootVcpus: int(vm.Spec.Instance.CPU.Sockets * vm.Spec.Instance.CPU.CoresPerSocket),
 			Topology: &cloudhypervisor.CpuTopology{
 				Packages:       int(vm.Spec.Instance.CPU.Sockets),
@@ -643,4 +595,8 @@ func executeCommand(name string, arg ...string) (string, error) {
 		return string(output), fmt.Errorf("%q: %s: %s", cmd.String(), err, output)
 	}
 	return string(output), nil
+}
+
+func getCloudHypervisorClient() *cloudhypervisor.Client {
+	return cloudhypervisor.NewClient("/var/run/virtink/ch.sock")
 }
