@@ -14,7 +14,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build go build -a cmd/virt-prerunn
 
 FROM alpine
 
-RUN apk add --no-cache tini curl screen dnsmasq cdrkit iptables iproute2 qemu-virtiofsd dpkg util-linux
+RUN apk add --no-cache curl screen dnsmasq cdrkit iptables iproute2 qemu-virtiofsd dpkg util-linux s6-overlay 
 
 RUN set -eux; \
     mkdir /var/lib/cloud-hypervisor; \
@@ -34,9 +34,19 @@ RUN set -eux; \
     chmod +x /usr/bin/cloud-hypervisor; \
     chmod +x /usr/bin/ch-remote
 
+COPY build/virt-prerunner/cloud-hypervisor-type /etc/s6-overlay/s6-rc.d/cloud-hypervisor/type
+COPY build/virt-prerunner/cloud-hypervisor-run.sh /etc/s6-overlay/s6-rc.d/cloud-hypervisor/run
+COPY build/virt-prerunner/cloud-hypervisor-finish.sh /etc/s6-overlay/s6-rc.d/cloud-hypervisor/finish
+RUN touch /etc/s6-overlay/s6-rc.d/user/contents.d/cloud-hypervisor
+
 COPY --from=builder /workspace/main /usr/bin/virt-prerunner
-COPY build/virt-prerunner/entrypoint.sh /entrypoint.sh
-ENTRYPOINT ["/sbin/tini", "-g", "--", "/entrypoint.sh"]
+COPY build/virt-prerunner/virt-prerunner-type /etc/s6-overlay/s6-rc.d/virt-prerunner/type
+COPY build/virt-prerunner/virt-prerunner-up /etc/s6-overlay/s6-rc.d/virt-prerunner/up
+COPY build/virt-prerunner/virt-prerunner-run.sh /etc/s6-overlay/scripts/virt-prerunner-run.sh
+RUN touch /etc/s6-overlay/s6-rc.d/user/contents.d/virt-prerunner
+ENV S6_BEHAVIOUR_IF_STAGE2_FAILS=2
+
+ENTRYPOINT ["/init"]
 
 COPY build/virt-prerunner/iptables-wrapper /sbin/iptables-wrapper
 RUN update-alternatives --install /sbin/iptables iptables /sbin/iptables-wrapper 100
