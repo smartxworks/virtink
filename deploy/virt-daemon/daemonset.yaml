@@ -33,6 +33,11 @@ spec:
             - name: cert
               mountPath: /var/lib/virtink/daemon/cert
               readOnly: true
+            - name: device-plugins
+              mountPath: /var/lib/kubelet/device-plugins
+            - name: devices
+              mountPath: /dev
+              mountPropagation: HostToContainer
       volumes:
         - name: kubelet-pods
           hostPath:
@@ -41,3 +46,9 @@ spec:
           secret:
             secretName: virt-daemon-cert
             defaultMode: 420
+        - name: device-plugins
+          hostPath:
+            path: /var/lib/kubelet/device-plugins
+        - name: devices
+          hostPath:
+            path: /dev

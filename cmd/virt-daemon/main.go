@@ -13,6 +13,7 @@ import (
 
 	virtv1alpha1 "github.com/smartxworks/virtink/pkg/apis/virt/v1alpha1"
 	"github.com/smartxworks/virtink/pkg/daemon"
+	"github.com/smartxworks/virtink/pkg/daemon/deviceplugin"
 	"github.com/smartxworks/virtink/pkg/daemon/tcpproxy"
 )
 
@@ -59,6 +60,11 @@ func main() {
 		RelayProvider: tcpproxy.NewRelayProvider(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "VM")
+		os.Exit(1)
+	}
+
+	if err = mgr.Add(deviceplugin.NewDevicePluginManager()); err != nil {
+		setupLog.Error(err, "unable to create device plugin manager")
 		os.Exit(1)
 	}
 

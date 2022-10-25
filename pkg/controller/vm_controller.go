@@ -277,7 +277,9 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 				LivenessProbe:  vm.Spec.LivenessProbe,
 				ReadinessProbe: vm.Spec.ReadinessProbe,
 				SecurityContext: &corev1.SecurityContext{
-					Privileged: func() *bool { v := true; return &v }(),
+					Capabilities: &corev1.Capabilities{
+						Add: []corev1.Capability{"SYS_ADMIN", "NET_ADMIN", "SYS_RESOURCE"},
+					},
 				},
 				Args: []string{"--vm-data", base64.StdEncoding.EncodeToString(vmJSON)},
 				VolumeMounts: []corev1.VolumeMount{{
@@ -293,6 +295,9 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 			}},
 		},
 	}
+
+	incrementContainerResource(&vmPod.Spec.Containers[0], "devices.virtink.io/kvm")
+	incrementContainerResource(&vmPod.Spec.Containers[0], "devices.virtink.io/tun")
 
 	if vmPod.Labels == nil {
 		vmPod.Labels = map[string]string{}
@@ -538,6 +543,17 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 		}
 		if iface == nil {
 			return nil, fmt.Errorf("interface not found for network: %s", network.Name)
+		}
+
+		if iface.Masquerade != nil {
+			vmPod.Spec.InitContainers = append(vmPod.Spec.InitContainers, corev1.Container{
+				Name:  "enable-ip-forward",
+				Image: r.PrerunnerImageName,
+				SecurityContext: &corev1.SecurityContext{
+					Privileged: &[]bool{true}[0],
+				},
+				Command: []string{"sysctl", "-w", "net.ipv4.ip_forward=1"},
+			})
 		}
 
 		switch {

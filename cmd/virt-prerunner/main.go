@@ -21,6 +21,7 @@ import (
 	netv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	"github.com/subgraph/libmacouflage"
 	"github.com/vishvananda/netlink"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	virtv1alpha1 "github.com/smartxworks/virtink/pkg/apis/virt/v1alpha1"
 	"github.com/smartxworks/virtink/pkg/cloudhypervisor"
@@ -30,8 +31,10 @@ import (
 func main() {
 	var vmData string
 	var receiveMigration bool
+	extraVFIOMemoryLockSize := resource.QuantityValue{Quantity: resource.MustParse("1Gi")}
 	flag.StringVar(&vmData, "vm-data", vmData, "Base64 encoded VM json data")
 	flag.BoolVar(&receiveMigration, "receive-migration", receiveMigration, "Receive migration instead of starting a new VM")
+	flag.Var(&extraVFIOMemoryLockSize, "extra-vfio-memory-lock-size", "The extra memory lock size for VFIO devices")
 	flag.Parse()
 
 	vmJSON, err := base64.StdEncoding.DecodeString(vmData)
@@ -115,6 +118,7 @@ func main() {
 	}
 
 	if len(vmConfig.Devices) > 0 {
+		cloudHypervisorCmd = append([]string{"prlimit", fmt.Sprintf("--memlock=%v", vmConfig.Memory.Size+extraVFIOMemoryLockSize.Value())}, cloudHypervisorCmd...)
 		cloudHypervisorCmd = append(cloudHypervisorCmd, "--device")
 		for _, device := range vmConfig.Devices {
 			cloudHypervisorCmd = append(cloudHypervisorCmd, fmt.Sprintf("id=%s,path=%s", device.Id, device.Path))
@@ -454,9 +458,6 @@ func setupMasqueradeNetwork(linkName string, cidr string, netConfig *cloudhyperv
 		Mask: subnet.Mask,
 	}
 
-	if _, err := executeCommand("sysctl", "-w", "net.ipv4.ip_forward=1"); err != nil {
-		return fmt.Errorf("enable net.ipv4.ip_forward: %s", err)
-	}
 	if _, err := executeCommand("iptables", "-t", "nat", "-A", "POSTROUTING", "-o", linkName, "-j", "MASQUERADE"); err != nil {
 		return fmt.Errorf("add masquerade rule: %s", err)
 	}
