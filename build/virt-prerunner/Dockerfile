@@ -14,7 +14,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build go build -a cmd/virt-prerunn
 
 FROM alpine
 
-RUN apk add --no-cache tini curl screen dnsmasq cdrkit iptables iproute2 qemu-virtiofsd
+RUN apk add --no-cache tini curl screen dnsmasq cdrkit iptables iproute2 qemu-virtiofsd dpkg
 
 RUN set -eux; \
     mkdir /var/lib/cloud-hypervisor; \
@@ -37,5 +37,8 @@ RUN set -eux; \
 COPY --from=builder /workspace/main /usr/bin/virt-prerunner
 COPY build/virt-prerunner/entrypoint.sh /entrypoint.sh
 ENTRYPOINT ["/sbin/tini", "-g", "--", "/entrypoint.sh"]
+
+COPY build/virt-prerunner/iptables-wrapper /sbin/iptables-wrapper
+RUN update-alternatives --install /sbin/iptables iptables /sbin/iptables-wrapper 100
 
 ADD build/virt-prerunner/virt-init-volume.sh /usr/bin/virt-init-volume
