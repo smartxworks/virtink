@@ -1,0 +1,17 @@
+#!/bin/sh
+
+set +e
+
+iptables-legacy -nvL
+
+if [ $? -eq 0 ]
+then
+  mode=legacy
+else
+  mode=nft
+fi
+
+update-alternatives --install /sbin/iptables iptables "/sbin/iptables-${mode}" 100
+update-alternatives --set iptables "/sbin/iptables-${mode}" > /dev/null
+
+exec "$0" "$@"
