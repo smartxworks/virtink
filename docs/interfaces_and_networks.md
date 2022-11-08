@@ -36,7 +36,7 @@ spec:
 
 It is also possible to connect VMs to secondary networks using [Multus CNI](https://github.com/k8snetworkplumbingwg/multus-cni). This assumes that Multus CNI is installed across your cluster and a corresponding `NetworkAttachmentDefinition` CRD was created.
 
-The following example defines a network which uses the [Open vSwitch CNI plugin](https://github.com/k8snetworkplumbingwg/ovs-cni), which will connect the VM to Open vSwitch's bridge `br1` on the host. Other CNI plugins such as [bridge](https://www.cni.dev/plugins/current/main/bridge/) or [macvlan](https://www.cni.dev/plugins/current/main/macvlan/) might be used as well. For their installation and usage refer to the respective project documentation.
+The following example defines a network which uses the [Open vSwitch CNI plugin](https://github.com/k8snetworkplumbingwg/ovs-cni), which will connect the VM to Open vSwitch's bridge `br1` on the host. Other CNI plugins such as [bridge](https://www.cni.dev/plugins/current/main/bridge/) might be used as well. For their installation and usage refer to the respective project documentation.
 
 First the `NetworkAttachmentDefinition` needs to be created.
 
@@ -69,6 +69,8 @@ spec:
       multus:
         networkName: ovs-br1
 ```
+
+> **Note**: The [macvlan](https://www.cni.dev/plugins/current/main/macvlan/) CNI plugin cannot work with bridge interface, since the unicast frame to VM will be dropped without `passthru` mode.
 
 ## VM Network Interfaces
 
