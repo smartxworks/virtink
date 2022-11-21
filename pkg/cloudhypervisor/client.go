@@ -30,7 +30,7 @@ func NewClient(socketPath string) *Client {
 }
 
 // Add a new device to the VM
-func (c *Client) VmAddDevice(ctx context.Context, arg *VmAddDevice) (*PciDeviceInfo, error) {
+func (c *Client) VmAddDevice(ctx context.Context, arg *DeviceConfig) (*PciDeviceInfo, error) {
 	reqBody, err := json.Marshal(arg)
 	if err != nil {
 		return nil, fmt.Errorf("encode request: %s", err)
@@ -822,6 +822,7 @@ type MemoryConfig struct {
 	Prefault       bool                `json:"prefault,omitempty"`
 	Shared         bool                `json:"shared,omitempty"`
 	Size           int64               `json:"size"`
+	Thp            bool                `json:"thp,omitempty"`
 	Zones          []*MemoryZoneConfig `json:"zones,omitempty"`
 }
 
@@ -840,11 +841,13 @@ type MemoryZoneConfig struct {
 }
 
 type NetConfig struct {
+	HostMac           string             `json:"host_mac,omitempty"`
 	Id                string             `json:"id,omitempty"`
 	Iommu             bool               `json:"iommu,omitempty"`
 	Ip                string             `json:"ip,omitempty"`
 	Mac               string             `json:"mac,omitempty"`
 	Mask              string             `json:"mask,omitempty"`
+	Mtu               int                `json:"mtu,omitempty"`
 	NumQueues         int                `json:"num_queues,omitempty"`
 	PciSegment        int16              `json:"pci_segment,omitempty"`
 	QueueSize         int                `json:"queue_size,omitempty"`
@@ -871,6 +874,7 @@ type NumaDistance struct {
 // Payloads to boot in guest
 type PayloadConfig struct {
 	Cmdline   string `json:"cmdline,omitempty"`
+	Firmware  string `json:"firmware,omitempty"`
 	Initramfs string `json:"initramfs,omitempty"`
 	Kernel    string `json:"kernel,omitempty"`
 }
@@ -886,6 +890,7 @@ type PlatformConfig struct {
 	NumPciSegments int16    `json:"num_pci_segments,omitempty"`
 	OemStrings     []string `json:"oem_strings,omitempty"`
 	SerialNumber   string   `json:"serial_number,omitempty"`
+	Tdx            bool     `json:"tdx,omitempty"`
 	Uuid           string   `json:"uuid,omitempty"`
 }
 
@@ -929,15 +934,15 @@ type SgxEpcConfig struct {
 	Size     int64  `json:"size"`
 }
 
-type TdxConfig struct {
-	Firmware string `json:"firmware"`
-}
-
 // Defines a token bucket with a maximum capacity (_size_), an initial burst size (_one_time_burst_) and an interval for refilling purposes (_refill_time_). The refill-rate is derived from _size_ and _refill_time_, and it is the constant rate at which the tokens replenish. The refill process only starts happening after the initial burst budget is consumed. Consumption from the token bucket is unbounded in speed which allows for bursts bound in size by the amount of tokens available. Once the token bucket is empty, consumption speed is bound by the refill-rate.
 type TokenBucket struct {
 	OneTimeBurst int64 `json:"one_time_burst,omitempty"`
 	RefillTime   int64 `json:"refill_time"`
 	Size         int64 `json:"size"`
+}
+
+type TpmConfig struct {
+	Socket string `json:"socket"`
 }
 
 type VdpaConfig struct {
@@ -946,12 +951,6 @@ type VdpaConfig struct {
 	NumQueues  int    `json:"num_queues"`
 	Path       string `json:"path"`
 	PciSegment int16  `json:"pci_segment,omitempty"`
-}
-
-type VmAddDevice struct {
-	Id    string `json:"id,omitempty"`
-	Iommu bool   `json:"iommu,omitempty"`
-	Path  string `json:"path,omitempty"`
 }
 
 // Virtual machine configuration
@@ -972,7 +971,7 @@ type VmConfig struct {
 	Rng      *RngConfig      `json:"rng,omitempty"`
 	Serial   *ConsoleConfig  `json:"serial,omitempty"`
 	SgxEpc   []*SgxEpcConfig `json:"sgx_epc,omitempty"`
-	Tdx      *TdxConfig      `json:"tdx,omitempty"`
+	Tpm      *TpmConfig      `json:"tpm,omitempty"`
 	Vdpa     []*VdpaConfig   `json:"vdpa,omitempty"`
 	Vsock    *VsockConfig    `json:"vsock,omitempty"`
 	Watchdog bool            `json:"watchdog,omitempty"`
