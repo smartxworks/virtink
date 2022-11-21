@@ -110,9 +110,9 @@ func main() {
 		cloudHypervisorCmd = append(cloudHypervisorCmd, "--net")
 		for _, net := range vmConfig.Net {
 			if net.VhostUser {
-				cloudHypervisorCmd = append(cloudHypervisorCmd, fmt.Sprintf("id=%s,mac=%s,vhost_user=true,vhost_mode=server,socket=%s", net.Id, net.Mac, net.VhostSocket))
+				cloudHypervisorCmd = append(cloudHypervisorCmd, fmt.Sprintf("id=%s,mac=%s,mtu=%d,vhost_user=true,vhost_mode=server,socket=%s", net.Id, net.Mac, net.Mtu, net.VhostSocket))
 			} else {
-				cloudHypervisorCmd = append(cloudHypervisorCmd, fmt.Sprintf("id=%s,mac=%s,tap=%s", net.Id, net.Mac, net.Tap))
+				cloudHypervisorCmd = append(cloudHypervisorCmd, fmt.Sprintf("id=%s,mac=%s,tap=%s,mtu=%d", net.Id, net.Mac, net.Tap, net.Mtu))
 			}
 		}
 	}
@@ -299,9 +299,14 @@ func buildVMConfig(ctx context.Context, vm *virtv1alpha1.VirtualMachine) (*cloud
 				if socket == "" {
 					return nil, fmt.Errorf("vhost-user socket path not found")
 				}
+				link, err := netlink.LinkByName("eth0")
+				if err != nil {
+					return nil, fmt.Errorf("get link: %s", err)
+				}
 				netConfig := cloudhypervisor.NetConfig{
 					Id:          iface.Name,
 					Mac:         iface.MAC,
+					Mtu:         link.Attrs().MTU,
 					VhostUser:   true,
 					VhostMode:   "server",
 					VhostSocket: socket,
@@ -330,16 +335,18 @@ func setupBridgeNetwork(linkName string, cidr string, netConfig *cloudhypervisor
 		Mask: subnet.Mask,
 	}
 
-	bridgeName := fmt.Sprintf("br-%s", linkName)
-	bridge, err := createBridge(bridgeName, &bridgeIPNet)
-	if err != nil {
-		return fmt.Errorf("create bridge: %s", err)
-	}
-
 	link, err := netlink.LinkByName(linkName)
 	if err != nil {
 		return fmt.Errorf("get link: %s", err)
 	}
+	netConfig.Mtu = link.Attrs().MTU
+
+	bridgeName := fmt.Sprintf("br-%s", linkName)
+	bridge, err := createBridge(bridgeName, &bridgeIPNet, link.Attrs().MTU)
+	if err != nil {
+		return fmt.Errorf("create bridge: %s", err)
+	}
+
 	linkMAC := link.Attrs().HardwareAddr
 	netConfig.Mac = linkMAC.String()
 
@@ -404,7 +411,7 @@ func setupBridgeNetwork(linkName string, cidr string, netConfig *cloudhypervisor
 	}
 
 	tapName := fmt.Sprintf("tap-%s", linkName)
-	if _, err := createTap(bridge, tapName); err != nil {
+	if _, err := createTap(bridge, tapName, link.Attrs().MTU); err != nil {
 		return fmt.Errorf("create tap: %s", err)
 	}
 	netConfig.Tap = tapName
@@ -443,8 +450,14 @@ func setupMasqueradeNetwork(linkName string, cidr string, netConfig *cloudhyperv
 		Mask: subnet.Mask,
 	}
 
+	link, err := netlink.LinkByName(linkName)
+	if err != nil {
+		return fmt.Errorf("get link: %s", err)
+	}
+	netConfig.Mtu = link.Attrs().MTU
+
 	bridgeName := fmt.Sprintf("br-%s", linkName)
-	bridge, err := createBridge(bridgeName, &bridgeIPNet)
+	bridge, err := createBridge(bridgeName, &bridgeIPNet, link.Attrs().MTU)
 	if err != nil {
 		return fmt.Errorf("create bridge: %s", err)
 	}
@@ -466,7 +479,7 @@ func setupMasqueradeNetwork(linkName string, cidr string, netConfig *cloudhyperv
 	}
 
 	tapName := fmt.Sprintf("tap-%s", linkName)
-	if _, err := createTap(bridge, tapName); err != nil {
+	if _, err := createTap(bridge, tapName, link.Attrs().MTU); err != nil {
 		return fmt.Errorf("create tap: %s", err)
 	}
 	netConfig.Tap = tapName
@@ -497,10 +510,11 @@ func nextIP(ip net.IP, subnet *net.IPNet) (net.IP, error) {
 	return nextIP, nil
 }
 
-func createBridge(bridgeName string, bridgeIPNet *net.IPNet) (netlink.Link, error) {
+func createBridge(bridgeName string, bridgeIPNet *net.IPNet, mtu int) (netlink.Link, error) {
 	bridge := &netlink.Bridge{
 		LinkAttrs: netlink.LinkAttrs{
 			Name: bridgeName,
+			MTU:  mtu,
 		},
 	}
 	if err := netlink.LinkAdd(bridge); err != nil {
@@ -517,10 +531,11 @@ func createBridge(bridgeName string, bridgeIPNet *net.IPNet) (netlink.Link, erro
 	return bridge, nil
 }
 
-func createTap(bridge netlink.Link, tapName string) (netlink.Link, error) {
+func createTap(bridge netlink.Link, tapName string, mtu int) (netlink.Link, error) {
 	tap := &netlink.Tuntap{
 		LinkAttrs: netlink.LinkAttrs{
 			Name: tapName,
+			MTU:  mtu,
 		},
 		Mode:  netlink.TUNTAP_MODE_TAP,
 		Flags: netlink.TUNTAP_DEFAULTS,
