@@ -20,13 +20,13 @@ RUN set -eux; \
     mkdir /var/lib/cloud-hypervisor; \
     case "$(uname -m)" in \
         'x86_64') \
-            curl -sLo /usr/bin/cloud-hypervisor https://github.com/cloud-hypervisor/cloud-hypervisor/releases/download/v26.0/cloud-hypervisor-static; \
-            curl -sLo /usr/bin/ch-remote https://github.com/cloud-hypervisor/cloud-hypervisor/releases/download/v26.0/ch-remote-static; \
+            curl -sLo /usr/bin/cloud-hypervisor https://github.com/cloud-hypervisor/cloud-hypervisor/releases/download/v28.0/cloud-hypervisor-static; \
+            curl -sLo /usr/bin/ch-remote https://github.com/cloud-hypervisor/cloud-hypervisor/releases/download/v28.0/ch-remote-static; \
             curl -sLo /var/lib/cloud-hypervisor/hypervisor-fw https://github.com/cloud-hypervisor/rust-hypervisor-firmware/releases/download/0.4.0/hypervisor-fw; \
             ;; \
         'aarch64') \
-            curl -sLo /usr/bin/cloud-hypervisor https://github.com/cloud-hypervisor/cloud-hypervisor/releases/download/v26.0/cloud-hypervisor-static-aarch64; \
-            curl -sLo /usr/bin/ch-remote https://github.com/cloud-hypervisor/cloud-hypervisor/releases/download/v26.0/ch-remote-static-aarch64; \
+            curl -sLo /usr/bin/cloud-hypervisor https://github.com/cloud-hypervisor/cloud-hypervisor/releases/download/v28.0/cloud-hypervisor-static-aarch64; \
+            curl -sLo /usr/bin/ch-remote https://github.com/cloud-hypervisor/cloud-hypervisor/releases/download/v28.0/ch-remote-static-aarch64; \
             curl -sLo /var/lib/cloud-hypervisor/CLOUDHV_EFI.fd https://github.com/smartxworks/cloud-hypervisor-edk2-builder/releases/download/20220706/CLOUDHV_EFI.fd; \
             ;; \
         *) echo >&2 "error: unsupported architecture '$(uname -m)'"; exit 1 ;; \
