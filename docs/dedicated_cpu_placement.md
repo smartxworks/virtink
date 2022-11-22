@@ -10,7 +10,7 @@ Kubernetes CPU manager is a mechanism that affects the scheduling of workloads. 
 
 Setting `spec.instance.cpu.dedicatedCPUPlacement` to `true` in a VM spec will indicate the desire to allocate dedicated CPU resource to the VM.
 
-Expressing the desired amount of VM's vCPUs must be done by setting both the guest topology in `spec.instance.cpu` (`sockets` and `coresPerSocket`) and corresponding number of vCPUs (counted as `sockets * coresPerSocket`) in `spec.resources.[requests/limits].cpu`.
+Expressing the desired amount of VM's vCPUs must be done by setting the guest topology in `spec.instance.cpu` (`sockets` and `coresPerSocket`).
 
 Example:
 
@@ -23,13 +23,4 @@ spec:
       sockets: 2
       coresPerSocket: 1
       dedicatedCPUPlacement: true
-    memory:
-      size: 2Gi
-  resources:
-    requests:
-      cpu: 2
-      memory: 2.2Gi
-    limits:
-      cpu: 2
-      memory: 2.2Gi
 ```

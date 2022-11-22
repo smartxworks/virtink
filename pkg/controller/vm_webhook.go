@@ -86,6 +86,41 @@ func MutateVM(ctx context.Context, vm *virtv1alpha1.VirtualMachine, oldVM *virtv
 		}
 	}
 
+	if vm.Spec.Instance.CPU.DedicatedCPUPlacement {
+		memSize := resource.MustParse(memoryOverhead)
+		if !vm.Spec.Instance.Memory.Size.IsZero() {
+			if vm.Spec.Instance.Memory.Hugepages == nil {
+				memSize.Add(vm.Spec.Instance.Memory.Size)
+			}
+		}
+		rsList := map[corev1.ResourceName]resource.Quantity{
+			corev1.ResourceCPU:    *resource.NewQuantity(int64(vm.Spec.Instance.CPU.CoresPerSocket*vm.Spec.Instance.CPU.Sockets), resource.DecimalSI),
+			corev1.ResourceMemory: memSize,
+		}
+
+		if vm.Spec.Resources.Requests == nil {
+			vm.Spec.Resources.Requests = rsList
+		} else {
+			if vm.Spec.Resources.Requests.Cpu().IsZero() {
+				vm.Spec.Resources.Requests[corev1.ResourceCPU] = rsList[corev1.ResourceCPU]
+			}
+			if vm.Spec.Resources.Requests.Memory().IsZero() {
+				vm.Spec.Resources.Requests[corev1.ResourceMemory] = rsList[corev1.ResourceMemory]
+			}
+		}
+
+		if vm.Spec.Resources.Limits == nil {
+			vm.Spec.Resources.Limits = rsList
+		} else {
+			if vm.Spec.Resources.Limits.Cpu().IsZero() {
+				vm.Spec.Resources.Limits[corev1.ResourceCPU] = rsList[corev1.ResourceCPU]
+			}
+			if vm.Spec.Resources.Limits.Memory().IsZero() {
+				vm.Spec.Resources.Limits[corev1.ResourceMemory] = rsList[corev1.ResourceMemory]
+			}
+		}
+	}
+
 	if vm.Spec.Instance.Memory.Hugepages != nil {
 		hugepagesSize := fmt.Sprintf("hugepages-%s", vm.Spec.Instance.Memory.Hugepages.PageSize)
 
@@ -213,10 +248,9 @@ func ValidateVMSpec(ctx context.Context, spec *virtv1alpha1.VirtualMachineSpec, 
 		}
 
 		memoryRequestField := fieldPath.Child("resources.requests").Child(string(corev1.ResourceMemory))
-		// TODO: add overhead without hugepages
-		memRequired := spec.Instance.Memory.Size.DeepCopy()
-		if spec.Instance.Memory.Hugepages != nil {
-			memRequired = resource.MustParse(memoryOverhead)
+		memRequired := resource.MustParse(memoryOverhead)
+		if spec.Instance.Memory.Hugepages == nil {
+			memRequired.Add(spec.Instance.Memory.Size)
 		}
 		if spec.Resources.Requests.Memory().IsZero() {
 			errs = append(errs, field.Required(memoryRequestField, ""))

@@ -53,7 +53,7 @@ const (
 
 type Instance struct {
 	CPU         CPU          `json:"cpu,omitempty"`
-	Memory      Memory       `json:"memory"`
+	Memory      Memory       `json:"memory,omitempty"`
 	Kernel      *Kernel      `json:"kernel,omitempty"`
 	Disks       []Disk       `json:"disks,omitempty"`
 	FileSystems []FileSystem `json:"fileSystems,omitempty"`
