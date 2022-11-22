@@ -72,11 +72,11 @@ func TestValidateVM(t *testing.T) {
 			vm.Spec.Resources = corev1.ResourceRequirements{
 				Requests: map[corev1.ResourceName]resource.Quantity{
 					corev1.ResourceCPU:    resource.MustParse("0"),
-					corev1.ResourceMemory: resource.MustParse("1Gi"),
+					corev1.ResourceMemory: resource.MustParse("1280Mi"),
 				},
 				Limits: map[corev1.ResourceName]resource.Quantity{
 					corev1.ResourceCPU:    resource.MustParse("1"),
-					corev1.ResourceMemory: resource.MustParse("1Gi"),
+					corev1.ResourceMemory: resource.MustParse("1280Mi"),
 				},
 			}
 			return vm
@@ -89,11 +89,11 @@ func TestValidateVM(t *testing.T) {
 			vm.Spec.Resources = corev1.ResourceRequirements{
 				Requests: map[corev1.ResourceName]resource.Quantity{
 					corev1.ResourceCPU:    resource.MustParse("1"),
-					corev1.ResourceMemory: resource.MustParse("1Gi"),
+					corev1.ResourceMemory: resource.MustParse("1280Mi"),
 				},
 				Limits: map[corev1.ResourceName]resource.Quantity{
 					corev1.ResourceCPU:    resource.MustParse("0"),
-					corev1.ResourceMemory: resource.MustParse("1Gi"),
+					corev1.ResourceMemory: resource.MustParse("1280Mi"),
 				},
 			}
 			return vm
@@ -106,11 +106,11 @@ func TestValidateVM(t *testing.T) {
 			vm.Spec.Resources = corev1.ResourceRequirements{
 				Requests: map[corev1.ResourceName]resource.Quantity{
 					corev1.ResourceCPU:    resource.MustParse("2"),
-					corev1.ResourceMemory: resource.MustParse("1Gi"),
+					corev1.ResourceMemory: resource.MustParse("1280Mi"),
 				},
 				Limits: map[corev1.ResourceName]resource.Quantity{
 					corev1.ResourceCPU:    resource.MustParse("2"),
-					corev1.ResourceMemory: resource.MustParse("1Gi"),
+					corev1.ResourceMemory: resource.MustParse("1280Mi"),
 				},
 			}
 			return vm
@@ -127,7 +127,7 @@ func TestValidateVM(t *testing.T) {
 				},
 				Limits: map[corev1.ResourceName]resource.Quantity{
 					corev1.ResourceCPU:    resource.MustParse("1"),
-					corev1.ResourceMemory: resource.MustParse("1Gi"),
+					corev1.ResourceMemory: resource.MustParse("1280Mi"),
 				},
 			}
 			return vm
@@ -140,7 +140,7 @@ func TestValidateVM(t *testing.T) {
 			vm.Spec.Resources = corev1.ResourceRequirements{
 				Requests: map[corev1.ResourceName]resource.Quantity{
 					corev1.ResourceCPU:    resource.MustParse("1"),
-					corev1.ResourceMemory: resource.MustParse("1Gi"),
+					corev1.ResourceMemory: resource.MustParse("1280Mi"),
 				},
 				Limits: map[corev1.ResourceName]resource.Quantity{
 					corev1.ResourceCPU:    resource.MustParse("1"),
@@ -461,6 +461,20 @@ func TestMutateVM(t *testing.T) {
 		}(),
 		assert: func(vm *virtv1alpha1.VirtualMachine) {
 			assert.Equal(t, "1Gi", vm.Spec.Instance.Memory.Size.String())
+		},
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			vm := oldVM.DeepCopy()
+			vm.Spec.Instance.CPU.DedicatedCPUPlacement = true
+			vm.Spec.Resources.Requests = nil
+			vm.Spec.Instance.Memory.Size = resource.MustParse("1Gi")
+			return vm
+		}(),
+		assert: func(vm *virtv1alpha1.VirtualMachine) {
+			assert.Equal(t, "1", vm.Spec.Resources.Requests.Cpu().String())
+			assert.Equal(t, "1", vm.Spec.Resources.Limits.Cpu().String())
+			assert.Equal(t, "1280Mi", vm.Spec.Resources.Requests.Memory().String())
+			assert.Equal(t, "1280Mi", vm.Spec.Resources.Limits.Memory().String())
 		},
 	}, {
 		vm: func() *virtv1alpha1.VirtualMachine {
