@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"sort"
 	"strconv"
+	"strings"
 
 	netv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -18,12 +20,19 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/client-go/tools/record"
-	cdiv1beta1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	virtv1alpha1 "github.com/smartxworks/virtink/pkg/apis/virt/v1alpha1"
+	"github.com/smartxworks/virtink/pkg/volumeutil"
+)
+
+const (
+	VMProtectionFinalizer = "virtink.io/vm-protection"
 )
 
 type VMReconciler struct {
@@ -50,18 +59,25 @@ func (r *VMReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Re
 	}
 
 	status := vm.Status.DeepCopy()
-	if err := r.reconcile(ctx, &vm); err != nil {
-		r.Recorder.Eventf(&vm, corev1.EventTypeWarning, "FailedReconcile", "Failed to reconcile VM: %s", err)
-		return ctrl.Result{}, err
+	rerr := r.reconcile(ctx, &vm)
+	if rerr != nil {
+		r.Recorder.Eventf(&vm, corev1.EventTypeWarning, "FailedReconcile", "Failed to reconcile VM: %s", rerr)
 	}
 
 	if !reflect.DeepEqual(vm.Status, status) {
 		if err := r.Status().Update(ctx, &vm); err != nil {
-			if apierrors.IsConflict(err) {
-				return ctrl.Result{Requeue: true}, nil
+			if rerr == nil {
+				if apierrors.IsConflict(err) {
+					return ctrl.Result{Requeue: true}, nil
+				}
+				return ctrl.Result{}, fmt.Errorf("update VM status: %s", err)
 			}
-			return ctrl.Result{}, fmt.Errorf("update VM status: %s", err)
+			ctrl.LoggerFrom(ctx).Error(err, "update VM status")
 		}
+	}
+
+	if rerr != nil {
+		return ctrl.Result{}, rerr
 	}
 
 	if err := r.gcVMPods(ctx, &vm); err != nil {
@@ -72,8 +88,27 @@ func (r *VMReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Re
 }
 
 func (r *VMReconciler) reconcile(ctx context.Context, vm *virtv1alpha1.VirtualMachine) error {
-	if vm.DeletionTimestamp != nil && !vm.DeletionTimestamp.IsZero() {
-		return nil
+	if vm.DeletionTimestamp == nil && !controllerutil.ContainsFinalizer(vm, VMProtectionFinalizer) {
+		controllerutil.AddFinalizer(vm, VMProtectionFinalizer)
+		return r.Client.Update(ctx, vm)
+	}
+
+	if vm.DeletionTimestamp != nil {
+		if vm.Status.Phase == "" ||
+			vm.Status.Phase == virtv1alpha1.VirtualMachinePending ||
+			vm.Status.Phase == virtv1alpha1.VirtualMachineScheduling ||
+			vm.Status.Phase == virtv1alpha1.VirtualMachineFailed ||
+			vm.Status.Phase == virtv1alpha1.VirtualMachineSucceeded {
+
+			deleted, err := r.deleteAllVMPods(ctx, vm)
+			if err != nil {
+				return err
+			}
+			if deleted {
+				controllerutil.RemoveFinalizer(vm, VMProtectionFinalizer)
+				return r.Client.Update(ctx, vm)
+			}
+		}
 	}
 
 	switch vm.Status.Phase {
@@ -119,11 +154,34 @@ func (r *VMReconciler) reconcile(ctx context.Context, vm *virtv1alpha1.VirtualMa
 				vm.Status.Phase = virtv1alpha1.VirtualMachineFailed
 			}
 		} else {
+			vm.Status.VMPodUID = vmPod.UID
+			vm.Status.NodeName = vmPod.Spec.NodeName
+
+			if vmPod.Spec.NodeName != "" {
+				if err := r.handleHotplugVolumes(ctx, vm, &vmPod, true); err != nil {
+					return err
+				}
+			}
+
+			allHotplugVolumesAttached := true
+			for _, volume := range vm.Spec.Volumes {
+				if !volume.IsHotpluggable() {
+					continue
+				}
+				var volumeStatus *virtv1alpha1.VolumeStatus
+				for i := range vm.Status.VolumeStatus {
+					if vm.Status.VolumeStatus[i].Name == volume.Name {
+						volumeStatus = &vm.Status.VolumeStatus[i]
+					}
+				}
+				if volumeStatus == nil || volumeStatus.Phase != virtv1alpha1.VolumeAttachedToNode {
+					allHotplugVolumesAttached = false
+				}
+			}
+
 			switch vmPod.Status.Phase {
 			case corev1.PodRunning:
-				if vm.Status.Phase == virtv1alpha1.VirtualMachineScheduling {
-					vm.Status.VMPodUID = vmPod.UID
-					vm.Status.NodeName = vmPod.Spec.NodeName
+				if vm.Status.Phase == virtv1alpha1.VirtualMachineScheduling && allHotplugVolumesAttached {
 					vm.Status.Phase = virtv1alpha1.VirtualMachineScheduled
 				}
 			case corev1.PodSucceeded:
@@ -134,6 +192,9 @@ func (r *VMReconciler) reconcile(ctx context.Context, vm *virtv1alpha1.VirtualMa
 				vm.Status.Phase = virtv1alpha1.VirtualMachineUnknown
 			default:
 				// ignored
+			}
+			if err := r.updateHotplugVolumeStatus(ctx, vm, &vmPod); err != nil {
+				return err
 			}
 		}
 	case virtv1alpha1.VirtualMachineRunning:
@@ -214,19 +275,58 @@ func (r *VMReconciler) reconcile(ctx context.Context, vm *virtv1alpha1.VirtualMa
 					}
 					r.Recorder.Eventf(vm, corev1.EventTypeNormal, "CreatedTargetVMPod", "Created target VM Pod %q", targetVMPod.Name)
 				} else {
-					switch targetVMPod.Status.Phase {
-					case corev1.PodRunning:
-						vm.Status.Migration.TargetVMPodUID = targetVMPod.UID
-						vm.Status.Migration.TargetNodeName = targetVMPod.Spec.NodeName
-						vm.Status.Migration.Phase = virtv1alpha1.VirtualMachineMigrationScheduled
-					case corev1.PodFailed, corev1.PodUnknown:
-						vm.Status.Migration.TargetVMPodUID = targetVMPod.UID
+					vm.Status.Migration.TargetVMPodUID = targetVMPod.UID
+					vm.Status.Migration.TargetNodeName = targetVMPod.Spec.NodeName
+
+					isHotplugVolumesAttachedToTargetNode := false
+					if targetVMPod.Status.Phase == corev1.PodFailed || targetVMPod.Status.Phase == corev1.PodSucceeded || targetVMPod.Status.Phase == corev1.PodUnknown {
 						vm.Status.Migration.Phase = virtv1alpha1.VirtualMachineMigrationFailed
+					} else if len(getHotplugVolumes(vm, &targetVMPod)) == 0 {
+						isHotplugVolumesAttachedToTargetNode = true
+					} else if targetVMPod.Spec.NodeName != "" {
+						// Clear volume status to make volume be mounted in target volume pod.
+						vmCopy := vm.DeepCopy()
+						vmCopy.Status.VolumeStatus = []virtv1alpha1.VolumeStatus{}
+						if err := r.handleHotplugVolumes(ctx, vmCopy, &targetVMPod, true); err != nil {
+							return err
+						}
+						targetVolumePods, err := r.getHotplugVolumePods(ctx, &targetVMPod)
+						if err != nil {
+							return err
+						}
+						if len(targetVolumePods) > 0 {
+							vm.Status.Migration.TargetVolumePodUID = targetVolumePods[0].UID
+							switch targetVolumePods[0].Status.Phase {
+							case corev1.PodFailed, corev1.PodSucceeded, corev1.PodUnknown:
+								vm.Status.Migration.Phase = virtv1alpha1.VirtualMachineMigrationFailed
+							case corev1.PodRunning:
+								isHotplugVolumesAttachedToTargetNode = true
+							}
+						}
+					}
+
+					if targetVMPod.Status.Phase == corev1.PodRunning && isHotplugVolumesAttachedToTargetNode {
+						vm.Status.Migration.Phase = virtv1alpha1.VirtualMachineMigrationScheduled
 					}
 				}
 			}
+		} else {
+			if err := r.handleHotplugVolumes(ctx, vm, &vmPod, false); err != nil {
+				return err
+			}
+			if err := r.updateHotplugVolumeStatus(ctx, vm, &vmPod); err != nil {
+				return err
+			}
 		}
 	case "", virtv1alpha1.VirtualMachineSucceeded, virtv1alpha1.VirtualMachineFailed:
+		deleted, err := r.deleteAllVMPods(ctx, vm)
+		if err != nil {
+			return err
+		}
+		if !deleted {
+			return nil
+		}
+
 		run := false
 		switch vm.Spec.RunPolicy {
 		case virtv1alpha1.RunPolicyAlways:
@@ -255,11 +355,6 @@ func (r *VMReconciler) reconcile(ctx context.Context, vm *virtv1alpha1.VirtualMa
 }
 
 func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualMachine) (*corev1.Pod, error) {
-	vmJSON, err := json.Marshal(vm)
-	if err != nil {
-		return nil, fmt.Errorf("marshal VM: %s", err)
-	}
-
 	vmPod := corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      vm.Labels,
@@ -281,17 +376,22 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 						Add: []corev1.Capability{"SYS_ADMIN", "NET_ADMIN", "SYS_RESOURCE"},
 					},
 				},
-				Env: []corev1.EnvVar{{
-					Name:  "VM_DATA",
-					Value: base64.StdEncoding.EncodeToString(vmJSON),
-				}},
 				VolumeMounts: []corev1.VolumeMount{{
 					Name:      "virtink",
 					MountPath: "/var/run/virtink",
+				}, {
+					Name:             "hotplug-volumes",
+					MountPath:        "/hotplug-volumes",
+					MountPropagation: &[]corev1.MountPropagationMode{corev1.MountPropagationHostToContainer}[0],
 				}},
 			}},
 			Volumes: []corev1.Volume{{
 				Name: "virtink",
+				VolumeSource: corev1.VolumeSource{
+					EmptyDir: &corev1.EmptyDirVolumeSource{},
+				},
+			}, {
+				Name: "hotplug-volumes",
 				VolumeSource: corev1.VolumeSource{
 					EmptyDir: &corev1.EmptyDirVolumeSource{},
 				},
@@ -347,6 +447,7 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 		vmPod.Spec.Containers[0].VolumeMounts = append(vmPod.Spec.Containers[0].VolumeMounts, volumeMount)
 	}
 
+	blockVolumes := []string{}
 	for _, volume := range vm.Spec.Volumes {
 		switch {
 		case volume.ContainerDisk != nil:
@@ -471,68 +572,52 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 				VolumeMounts:    []corev1.VolumeMount{volumeMount},
 			})
 		case volume.PersistentVolumeClaim != nil, volume.DataVolume != nil:
-			var pvcName string
-			if volume.PersistentVolumeClaim != nil {
-				pvcName = volume.PersistentVolumeClaim.ClaimName
-			} else {
-				pvcName = volume.DataVolume.VolumeName
+			ready, err := volumeutil.IsReady(ctx, r.Client, vm.Namespace, volume)
+			if err != nil {
+				return nil, err
+			}
+			if !ready {
+				return nil, fmt.Errorf("data volume is not ready: %s", volume.DataVolume.VolumeName)
 			}
 
-			vmPod.Spec.Volumes = append(vmPod.Spec.Volumes, corev1.Volume{
-				Name: volume.Name,
-				VolumeSource: corev1.VolumeSource{
-					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-						ClaimName: pvcName,
+			isBlock, err := volumeutil.IsBlock(ctx, r.Client, vm.Namespace, volume)
+			if err != nil {
+				return nil, err
+			}
+
+			if isBlock {
+				blockVolumes = append(blockVolumes, volume.Name)
+			}
+
+			if !volume.IsHotpluggable() {
+				vmPod.Spec.Volumes = append(vmPod.Spec.Volumes, corev1.Volume{
+					Name: volume.Name,
+					VolumeSource: corev1.VolumeSource{
+						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+							ClaimName: volume.PVCName(),
+						},
 					},
-				},
-			})
-
-			pvcKey := types.NamespacedName{
-				Namespace: vm.Namespace,
-				Name:      pvcName,
-			}
-			var pvc corev1.PersistentVolumeClaim
-			if err := r.Client.Get(ctx, pvcKey, &pvc); err != nil {
-				return nil, fmt.Errorf("get PVC: %s", err)
-			}
-
-			if volume.DataVolume != nil {
-				var getDataVolumeFunc = func(name, namespace string) (*cdiv1beta1.DataVolume, error) {
-					var dv cdiv1beta1.DataVolume
-					dvKey := types.NamespacedName{
-						Name:      volume.DataVolume.VolumeName,
-						Namespace: vm.Namespace,
+				})
+				if isBlock {
+					volumeDevice := corev1.VolumeDevice{
+						Name:       volume.Name,
+						DevicePath: "/mnt/" + volume.Name,
 					}
-					if err := r.Client.Get(ctx, dvKey, &dv); err != nil {
-						return nil, err
+					vmPod.Spec.Containers[0].VolumeDevices = append(vmPod.Spec.Containers[0].VolumeDevices, volumeDevice)
+				} else {
+					volumeMount := corev1.VolumeMount{
+						Name:      volume.Name,
+						MountPath: "/mnt/" + volume.Name,
 					}
-					return &dv, nil
+					vmPod.Spec.Containers[0].VolumeMounts = append(vmPod.Spec.Containers[0].VolumeMounts, volumeMount)
 				}
-				ready, err := cdiv1beta1.IsPopulated(&pvc, getDataVolumeFunc)
-				if err != nil {
-					return nil, err
-				}
-				if !ready {
-					return nil, fmt.Errorf("data volume is not ready: %s", volume.DataVolume.VolumeName)
-				}
-			}
-
-			if pvc.Spec.VolumeMode != nil && *pvc.Spec.VolumeMode == corev1.PersistentVolumeBlock {
-				volumeDevice := corev1.VolumeDevice{
-					Name:       volume.Name,
-					DevicePath: "/mnt/" + volume.Name,
-				}
-				vmPod.Spec.Containers[0].VolumeDevices = append(vmPod.Spec.Containers[0].VolumeDevices, volumeDevice)
-			} else {
-				volumeMount := corev1.VolumeMount{
-					Name:      volume.Name,
-					MountPath: "/mnt/" + volume.Name,
-				}
-				vmPod.Spec.Containers[0].VolumeMounts = append(vmPod.Spec.Containers[0].VolumeMounts, volumeMount)
 			}
 		default:
 			// ignored
 		}
+	}
+	if len(blockVolumes) > 0 {
+		vmPod.Spec.Containers[0].Env = append(vmPod.Spec.Containers[0].Env, corev1.EnvVar{Name: "BLOCK_VOLUMES", Value: strings.Join(blockVolumes, ",")})
 	}
 
 	var networks []netv1.NetworkSelectionElement
@@ -642,6 +727,15 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 		vmPod.Annotations["k8s.v1.cni.cncf.io/networks"] = string(networksJSON)
 	}
 
+	vmJSON, err := json.Marshal(vm)
+	if err != nil {
+		return nil, fmt.Errorf("marshal VM: %s", err)
+	}
+	vmPod.Spec.Containers[0].Env = append(vmPod.Spec.Containers[0].Env, corev1.EnvVar{
+		Name:  "VM_DATA",
+		Value: base64.StdEncoding.EncodeToString(vmJSON),
+	})
+
 	return &vmPod, nil
 }
 
@@ -676,6 +770,273 @@ func (r *VMReconciler) buildTargetVMPod(ctx context.Context, vm *virtv1alpha1.Vi
 		TopologyKey: "kubernetes.io/hostname",
 	})
 	return pod, nil
+}
+
+func (r *VMReconciler) handleHotplugVolumes(ctx context.Context, vm *virtv1alpha1.VirtualMachine, vmPod *corev1.Pod, waitAllVolumesReady bool) error {
+	hotplugVolumes := getHotplugVolumes(vm, vmPod)
+	readyHotplugVolumes := []*virtv1alpha1.Volume{}
+	for _, volume := range hotplugVolumes {
+		ready, err := volumeutil.IsReady(ctx, r.Client, vm.Namespace, *volume)
+		if err != nil {
+			return err
+		}
+		if ready {
+			readyHotplugVolumes = append(readyHotplugVolumes, volume)
+		}
+	}
+	if waitAllVolumesReady && len(readyHotplugVolumes) < len(hotplugVolumes) {
+		return nil
+	}
+
+	hotplugVolumePods, err := r.getHotplugVolumePods(ctx, vmPod)
+	if err != nil {
+		return err
+	}
+
+	oldPods := []*corev1.Pod{}
+	var currentPod *corev1.Pod
+	for _, pod := range hotplugVolumePods {
+		if currentPod == nil && isPodMatchVMHotplugVolumes(pod, readyHotplugVolumes) {
+			currentPod = pod
+		} else {
+			oldPods = append(oldPods, pod)
+		}
+	}
+
+	if currentPod == nil && len(readyHotplugVolumes) > 0 {
+		volumePod, err := r.buildHotplugVolumePod(ctx, vm, vmPod, readyHotplugVolumes)
+		if err != nil {
+			return err
+		}
+		if err := r.Create(ctx, volumePod); err != nil {
+			return err
+		}
+		r.Recorder.Eventf(vm, corev1.EventTypeNormal, "CreatedHotplugVolumePod", fmt.Sprintf("Created VM Hotplug Volume Pod %q", volumePod.Name))
+	}
+
+	for _, pod := range oldPods {
+		if pod.DeletionTimestamp.IsZero() {
+			if err := r.Client.Delete(ctx, pod); err != nil {
+				return err
+			}
+			r.Recorder.Eventf(vm, corev1.EventTypeNormal, "DeletedHotplugVolumePod", fmt.Sprintf("Deleted VM Hotplug Volume Pod %q", pod.Name))
+		}
+	}
+	return nil
+}
+
+func getHotplugVolumes(vm *virtv1alpha1.VirtualMachine, vmPod *corev1.Pod) []*virtv1alpha1.Volume {
+	podVolumes := make(map[string]bool)
+	for _, volume := range vmPod.Spec.Volumes {
+		podVolumes[volume.Name] = true
+	}
+
+	hotplugVolumes := make([]*virtv1alpha1.Volume, 0)
+	for i := range vm.Spec.Volumes {
+		volume := &vm.Spec.Volumes[i]
+		if volume.IsHotpluggable() && !podVolumes[volume.Name] {
+			hotplugVolumes = append(hotplugVolumes, volume)
+		}
+	}
+	return hotplugVolumes
+}
+
+func (r *VMReconciler) getHotplugVolumePods(ctx context.Context, vmPod *corev1.Pod) ([]*corev1.Pod, error) {
+	podList := corev1.PodList{}
+	if err := r.Client.List(ctx, &podList, client.InNamespace(vmPod.Namespace)); err != nil {
+		return nil, err
+	}
+
+	pods := []*corev1.Pod{}
+	for i := range podList.Items {
+		ownerRef := metav1.GetControllerOf(&podList.Items[i])
+		if ownerRef != nil && ownerRef.UID == vmPod.UID {
+			pods = append(pods, &podList.Items[i])
+		}
+	}
+	sort.Slice(pods, func(i, j int) bool {
+		return !pods[i].CreationTimestamp.Before(&pods[j].CreationTimestamp)
+	})
+	return pods, nil
+}
+
+func isPodMatchVMHotplugVolumes(pod *corev1.Pod, hotplugVolumes []*virtv1alpha1.Volume) bool {
+	if len(pod.Spec.Volumes)-2 != len(hotplugVolumes) {
+		return false
+	}
+
+	podVolumesMap := make(map[string]corev1.Volume)
+	for _, volume := range pod.Spec.Volumes {
+		if volume.PersistentVolumeClaim != nil {
+			podVolumesMap[volume.Name] = volume
+		}
+	}
+	for _, volume := range hotplugVolumes {
+		delete(podVolumesMap, volume.Name)
+	}
+	return len(podVolumesMap) == 0
+}
+
+func (r *VMReconciler) buildHotplugVolumePod(ctx context.Context, vm *virtv1alpha1.VirtualMachine, vmPod *corev1.Pod, hotplugVolumes []*virtv1alpha1.Volume) (*corev1.Pod, error) {
+	sharedMount := corev1.MountPropagationHostToContainer
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:    vmPod.Namespace,
+			GenerateName: fmt.Sprintf("%s-hotplug-volumes-", vm.Name),
+		},
+		Spec: corev1.PodSpec{
+			RestartPolicy: corev1.RestartPolicyNever,
+			HostNetwork:   true,
+			Tolerations:   vmPod.Spec.Tolerations,
+			Affinity: &corev1.Affinity{
+				NodeAffinity: &corev1.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+						NodeSelectorTerms: []corev1.NodeSelectorTerm{{
+							MatchExpressions: []corev1.NodeSelectorRequirement{{
+								Key:      "kubernetes.io/hostname",
+								Operator: corev1.NodeSelectorOpIn,
+								Values:   []string{vmPod.Spec.NodeName},
+							}},
+						}},
+					},
+				},
+			},
+			Containers: []corev1.Container{{
+				Name:    "hotplug-volumes",
+				Image:   r.PrerunnerImageName,
+				Command: []string{"/bin/sh", "-c", "ncat -lkU /hotplug/hp.sock"},
+				VolumeMounts: []corev1.VolumeMount{{
+					Name:             "hotplug",
+					MountPath:        "/hotplug",
+					MountPropagation: &sharedMount,
+				}},
+			}},
+			Volumes: []corev1.Volume{{
+				Name: "hotplug",
+				VolumeSource: corev1.VolumeSource{
+					EmptyDir: &corev1.EmptyDirVolumeSource{},
+				},
+			}},
+		},
+	}
+
+	volumeStatusMap := map[string]virtv1alpha1.VolumeStatus{}
+	for _, volumeStatus := range vm.Status.VolumeStatus {
+		volumeStatusMap[volumeStatus.Name] = volumeStatus
+	}
+
+	for _, volume := range hotplugVolumes {
+		pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
+			Name: volume.Name,
+			VolumeSource: corev1.VolumeSource{
+				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+					ClaimName: volume.PVCName(),
+				},
+			},
+		})
+
+		volumeStatus := volumeStatusMap[volume.Name]
+		if volumeStatus.Phase != virtv1alpha1.VolumeMountedToPod && volumeStatus.Phase != virtv1alpha1.VolumeReady {
+			isBlock, err := volumeutil.IsBlock(ctx, r.Client, vm.Namespace, *volume)
+			if err != nil {
+				return nil, err
+			}
+			if isBlock {
+				volumeDevice := corev1.VolumeDevice{
+					Name:       volume.Name,
+					DevicePath: "/hotplug/" + volume.Name,
+				}
+				pod.Spec.Containers[0].VolumeDevices = append(pod.Spec.Containers[0].VolumeDevices, volumeDevice)
+			} else {
+				volumeMount := corev1.VolumeMount{
+					Name:      volume.Name,
+					MountPath: "/mnt/" + volume.Name,
+				}
+				pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, volumeMount)
+			}
+		}
+	}
+	if err := controllerutil.SetControllerReference(vmPod, pod, r.Scheme); err != nil {
+		return nil, err
+	}
+	return pod, nil
+}
+
+func (r *VMReconciler) updateHotplugVolumeStatus(ctx context.Context, vm *virtv1alpha1.VirtualMachine, vmPod *corev1.Pod) error {
+	hotplugVolumes := getHotplugVolumes(vm, vmPod)
+	volumeStatusMap := map[string]virtv1alpha1.VolumeStatus{}
+	for _, status := range vm.Status.VolumeStatus {
+		volumeStatusMap[status.Name] = status
+	}
+	hotplugVolumePods, err := r.getHotplugVolumePods(ctx, vmPod)
+	if err != nil {
+		return err
+	}
+
+	newVolumeStatus := []virtv1alpha1.VolumeStatus{}
+	for _, volume := range hotplugVolumes {
+		status := virtv1alpha1.VolumeStatus{}
+		if _, ok := volumeStatusMap[volume.Name]; ok {
+			status = volumeStatusMap[volume.Name]
+		} else {
+			status.Name = volume.Name
+		}
+		if status.Phase == "" {
+			status.Phase = virtv1alpha1.VolumePending
+		}
+
+		delete(volumeStatusMap, volume.Name)
+		if status.HotplugVolume == nil {
+			status.HotplugVolume = &virtv1alpha1.HotplugVolumeStatus{}
+		}
+		var volumePod *corev1.Pod
+		for _, pod := range hotplugVolumePods {
+			for _, podVolume := range pod.Spec.Volumes {
+				if podVolume.Name == volume.Name {
+					volumePod = pod
+					break
+				}
+			}
+			if volumePod != nil {
+				break
+			}
+		}
+		if volumePod != nil {
+			status.HotplugVolume.VolumePodName = volumePod.Name
+			status.HotplugVolume.VolumePodUID = volumePod.UID
+			if volumePod.Status.Phase == corev1.PodRunning && status.Phase == virtv1alpha1.VolumePending {
+				status.Phase = virtv1alpha1.VolumeAttachedToNode
+			}
+		} else {
+			status.HotplugVolume.VolumePodName = ""
+			status.HotplugVolume.VolumePodUID = ""
+			status.Phase = virtv1alpha1.VolumePending
+		}
+		newVolumeStatus = append(newVolumeStatus, status)
+	}
+
+	for volumeName, status := range volumeStatusMap {
+		var volumePod *corev1.Pod
+		for _, pod := range hotplugVolumePods {
+			for _, podVolume := range pod.Spec.Volumes {
+				if podVolume.Name == volumeName {
+					volumePod = pod
+					break
+				}
+				if volumePod != nil {
+					break
+				}
+			}
+		}
+		if volumePod != nil {
+			status.HotplugVolume.VolumePodName = volumePod.Name
+			status.HotplugVolume.VolumePodUID = volumePod.UID
+			status.Phase = virtv1alpha1.VolumeDetaching
+			newVolumeStatus = append(newVolumeStatus, status)
+		}
+	}
+	vm.Status.VolumeStatus = newVolumeStatus
+	return nil
 }
 
 func (r *VMReconciler) reconcileVMConditions(ctx context.Context, vm *virtv1alpha1.VirtualMachine, vmPod *corev1.Pod) error {
@@ -795,6 +1156,28 @@ func (r *VMReconciler) gcVMPods(ctx context.Context, vm *virtv1alpha1.VirtualMac
 	return nil
 }
 
+func (r *VMReconciler) deleteAllVMPods(ctx context.Context, vm *virtv1alpha1.VirtualMachine) (bool, error) {
+	var vmPodList corev1.PodList
+	if err := r.List(ctx, &vmPodList, client.MatchingFields{"vmUID": string(vm.UID)}); err != nil {
+		return false, fmt.Errorf("list VM Pods: %s", err)
+	}
+	if len(vmPodList.Items) == 0 {
+		return true, nil
+	}
+
+	for _, vmPod := range vmPodList.Items {
+		if vmPod.DeletionTimestamp != nil && !vmPod.DeletionTimestamp.IsZero() {
+			continue
+		}
+
+		if err := r.Delete(ctx, &vmPod); client.IgnoreNotFound(err) != nil {
+			return false, fmt.Errorf("delete VM Pod: %s", err)
+		}
+		r.Recorder.Eventf(vm, corev1.EventTypeNormal, "DeletedVMPod", fmt.Sprintf("Deleted VM Pod %q", vmPod.Name))
+	}
+	return false, nil
+}
+
 func incrementContainerResource(container *corev1.Container, resourceName string) {
 	if container.Resources.Requests == nil {
 		container.Resources.Requests = corev1.ResourceList{}
@@ -826,5 +1209,31 @@ func (r *VMReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&virtv1alpha1.VirtualMachine{}).
 		Owns(&corev1.Pod{}).
+		Watches(&source.Kind{Type: &corev1.Pod{}},
+			handler.EnqueueRequestsFromMapFunc(func(obj client.Object) []reconcile.Request {
+				if _, ok := obj.(*corev1.Pod); !ok {
+					return nil
+				}
+				controllerRef := metav1.GetControllerOf(obj)
+				if controllerRef != nil && controllerRef.Kind == "Pod" {
+					pod := corev1.Pod{}
+					podKey := types.NamespacedName{Namespace: obj.GetNamespace(), Name: controllerRef.Name}
+					if err := r.Client.Get(context.Background(), podKey, &pod); err != nil {
+						return nil
+					}
+					controllerRef = metav1.GetControllerOf(&pod)
+				}
+
+				if controllerRef == nil || controllerRef.Kind != "VirtualMachine" {
+					return nil
+				}
+
+				return []reconcile.Request{{
+					NamespacedName: types.NamespacedName{
+						Namespace: obj.GetNamespace(),
+						Name:      controllerRef.Name,
+					},
+				}}
+			})).
 		Complete(r)
 }

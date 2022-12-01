@@ -13,9 +13,12 @@ spec:
         name: virt-daemon
     spec:
       serviceAccountName: virt-daemon
+      hostPID: true
       containers:
         - name: virt-daemon
           image: virt-daemon
+          securityContext:
+            privileged: true
           env:
             - name: NODE_NAME
               valueFrom:
@@ -30,6 +33,7 @@ spec:
           volumeMounts:
             - name: kubelet-pods
               mountPath: /var/lib/kubelet/pods
+              mountPropagation: Bidirectional
             - name: cert
               mountPath: /var/lib/virtink/daemon/cert
               readOnly: true
@@ -38,6 +42,8 @@ spec:
             - name: devices
               mountPath: /dev
               mountPropagation: HostToContainer
+            - name: virtink
+              mountPath: /var/run/virtink
       volumes:
         - name: kubelet-pods
           hostPath:
@@ -52,3 +58,6 @@ spec:
         - name: devices
           hostPath:
             path: /dev
+        - name: virtink
+          hostPath:
+            path: /var/run/virtink

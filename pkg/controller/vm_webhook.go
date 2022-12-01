@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"reflect"
 
-	"github.com/r3labs/diff/v2"
 	admissionv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -146,11 +146,23 @@ func MutateVM(ctx context.Context, vm *virtv1alpha1.VirtualMachine, oldVM *virtv
 
 	for i := range vm.Spec.Instance.Interfaces {
 		if vm.Spec.Instance.Interfaces[i].MAC == "" {
-			mac, err := generateMAC()
-			if err != nil {
-				return fmt.Errorf("generate MAC: %s", err)
+			var macStr string
+			if oldVM != nil {
+				for j := range oldVM.Spec.Instance.Interfaces {
+					if oldVM.Spec.Instance.Interfaces[j].Name == vm.Spec.Instance.Interfaces[i].Name {
+						macStr = oldVM.Spec.Instance.Interfaces[j].MAC
+						break
+					}
+				}
 			}
-			vm.Spec.Instance.Interfaces[i].MAC = mac.String()
+			if macStr == "" {
+				mac, err := generateMAC()
+				if err != nil {
+					return fmt.Errorf("generate MAC: %s", err)
+				}
+				macStr = mac.String()
+			}
+			vm.Spec.Instance.Interfaces[i].MAC = macStr
 		}
 
 		if vm.Spec.Instance.Interfaces[i].Bridge == nil && vm.Spec.Instance.Interfaces[i].Masquerade == nil && vm.Spec.Instance.Interfaces[i].SRIOV == nil && vm.Spec.Instance.Interfaces[i].VhostUser == nil {
@@ -198,17 +210,6 @@ func (h *VMValidator) Handle(ctx context.Context, req admission.Request) admissi
 			return admission.Errored(http.StatusBadRequest, fmt.Errorf("unmarshal old VM: %s", err))
 		}
 		errs = ValidateVM(ctx, &vm, &oldVM)
-
-		changes, err := diff.Diff(oldVM.Spec, vm.Spec, diff.SliceOrdering(true))
-		if err != nil {
-			return admission.Errored(http.StatusInternalServerError, fmt.Errorf("diff VM: %s", err))
-		}
-
-		if len(changes) != 0 {
-			if len(changes) != 1 || changes[0].Path[0] != "RunPolicy" {
-				errs = append(errs, field.Forbidden(field.NewPath("spec"), "VM spec may not be updated except runPolicy"))
-			}
-		}
 	default:
 		return admission.Allowed("")
 	}
@@ -222,6 +223,9 @@ func (h *VMValidator) Handle(ctx context.Context, req admission.Request) admissi
 func ValidateVM(ctx context.Context, vm *virtv1alpha1.VirtualMachine, oldVM *virtv1alpha1.VirtualMachine) field.ErrorList {
 	var errs field.ErrorList
 	errs = append(errs, ValidateVMSpec(ctx, &vm.Spec, field.NewPath("spec"))...)
+	if oldVM != nil {
+		errs = append(errs, ValidateVMUpdate(ctx, vm, oldVM)...)
+	}
 	return errs
 }
 
@@ -768,6 +772,52 @@ func ValidateMultusNetworkSource(ctx context.Context, source *virtv1alpha1.Multu
 
 	if source.NetworkName == "" {
 		errs = append(errs, field.Required(fieldPath.Child("networkName"), ""))
+	}
+	return errs
+}
+
+func ValidateVMUpdate(ctx context.Context, vm *virtv1alpha1.VirtualMachine, oldVM *virtv1alpha1.VirtualMachine) field.ErrorList {
+	var errs field.ErrorList
+	tmpOldVM := oldVM.DeepCopy()
+	tmpOldVM.Spec.RunPolicy = vm.Spec.RunPolicy
+	tmpOldVM.Spec.Volumes = vm.Spec.Volumes
+	tmpOldVM.Spec.Instance.Disks = vm.Spec.Instance.Disks
+	if !reflect.DeepEqual(tmpOldVM.Spec, vm.Spec) {
+		errs = append(errs, field.Forbidden(field.NewPath("spec"), "VM spec may not be updated except runPolicy, volumes, instance.disks"))
+	}
+
+	for _, oldVolume := range oldVM.Spec.Volumes {
+		var newVolume *virtv1alpha1.Volume
+		for _, volume := range vm.Spec.Volumes {
+			if volume.Name == oldVolume.Name {
+				newVolume = &volume
+				break
+			}
+		}
+		if newVolume != nil {
+			if !reflect.DeepEqual(oldVolume, *newVolume) {
+				errs = append(errs, field.Forbidden(field.NewPath("spec").Child("volumes").Key(oldVolume.Name), "VM volume may not be updated"))
+			}
+		} else {
+			if !oldVolume.IsHotpluggable() {
+				errs = append(errs, field.Forbidden(field.NewPath("spec").Child("volumes").Key(oldVolume.Name), "Unhotpluggable volume may not be hotunplugged"))
+			}
+		}
+	}
+
+	for _, newVolume := range vm.Spec.Volumes {
+		var oldVolume *virtv1alpha1.Volume
+		for _, volume := range oldVM.Spec.Volumes {
+			if volume.Name == newVolume.Name {
+				oldVolume = &volume
+				break
+			}
+		}
+		if oldVolume == nil {
+			if !newVolume.IsHotpluggable() {
+				errs = append(errs, field.Forbidden(field.NewPath("spec").Child("volumes").Key(newVolume.Name), "Unhotpluggable volume may not be hotplugged"))
+			}
+		}
 	}
 	return errs
 }

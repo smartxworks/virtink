@@ -123,6 +123,22 @@ type Volume struct {
 	VolumeSource `json:",inline"`
 }
 
+func (v *Volume) IsHotpluggable() bool {
+	return v.PersistentVolumeClaim != nil && v.PersistentVolumeClaim.Hotpluggable ||
+		v.DataVolume != nil && v.DataVolume.Hotpluggable
+}
+
+func (v *Volume) PVCName() string {
+	switch {
+	case v.PersistentVolumeClaim != nil:
+		return v.PersistentVolumeClaim.ClaimName
+	case v.DataVolume != nil:
+		return v.DataVolume.VolumeName
+	default:
+		return ""
+	}
+}
+
 type VolumeSource struct {
 	ContainerDisk         *ContainerDiskVolumeSource         `json:"containerDisk,omitempty"`
 	CloudInit             *CloudInitVolumeSource             `json:"cloudInit,omitempty"`
@@ -152,11 +168,13 @@ type ContainerRootfsVolumeSource struct {
 }
 
 type PersistentVolumeClaimVolumeSource struct {
-	ClaimName string `json:"claimName"`
+	Hotpluggable bool   `json:"hotpluggable,omitempty"`
+	ClaimName    string `json:"claimName"`
 }
 
 type DataVolumeVolumeSource struct {
-	VolumeName string `json:"volumeName"`
+	Hotpluggable bool   `json:"hotpluggable,omitempty"`
+	VolumeName   string `json:"volumeName"`
 }
 
 type Network struct {
@@ -178,13 +196,14 @@ type MultusNetworkSource struct {
 
 // VirtualMachineStatus is the status for a VirtualMachine resource
 type VirtualMachineStatus struct {
-	Phase       VirtualMachinePhase            `json:"phase,omitempty"`
-	VMPodName   string                         `json:"vmPodName,omitempty"`
-	VMPodUID    types.UID                      `json:"vmPodUID,omitempty"`
-	NodeName    string                         `json:"nodeName,omitempty"`
-	PowerAction VirtualMachinePowerAction      `json:"powerAction,omitempty"`
-	Migration   *VirtualMachineStatusMigration `json:"migration,omitempty"`
-	Conditions  []metav1.Condition             `json:"conditions,omitempty"`
+	Phase        VirtualMachinePhase            `json:"phase,omitempty"`
+	VMPodName    string                         `json:"vmPodName,omitempty"`
+	VMPodUID     types.UID                      `json:"vmPodUID,omitempty"`
+	NodeName     string                         `json:"nodeName,omitempty"`
+	PowerAction  VirtualMachinePowerAction      `json:"powerAction,omitempty"`
+	Migration    *VirtualMachineStatusMigration `json:"migration,omitempty"`
+	Conditions   []metav1.Condition             `json:"conditions,omitempty"`
+	VolumeStatus []VolumeStatus                 `json:"volumeStatus,omitempty"`
 }
 
 // +kubebuilder:validation:Enum=Pending;Scheduling;Scheduled;Running;Succeeded;Failed;Unknown
@@ -216,13 +235,14 @@ const (
 )
 
 type VirtualMachineStatusMigration struct {
-	UID             types.UID                    `json:"uid,omitempty"`
-	Phase           VirtualMachineMigrationPhase `json:"phase,omitempty"`
-	TargetNodeName  string                       `json:"targetNodeName,omitempty"`
-	TargetNodeIP    string                       `json:"targetNodeIP,omitempty"`
-	TargetNodePort  int                          `json:"targetNodePort,omitempty"`
-	TargetVMPodName string                       `json:"targetVMPodName,omitempty"`
-	TargetVMPodUID  types.UID                    `json:"targetVMPodUID,omitempty"`
+	UID                types.UID                    `json:"uid,omitempty"`
+	Phase              VirtualMachineMigrationPhase `json:"phase,omitempty"`
+	TargetNodeName     string                       `json:"targetNodeName,omitempty"`
+	TargetNodeIP       string                       `json:"targetNodeIP,omitempty"`
+	TargetNodePort     int                          `json:"targetNodePort,omitempty"`
+	TargetVMPodName    string                       `json:"targetVMPodName,omitempty"`
+	TargetVMPodUID     types.UID                    `json:"targetVMPodUID,omitempty"`
+	TargetVolumePodUID types.UID                    `json:"targetVolumePodUID,omitempty"`
 }
 
 type VirtualMachineConditionType string
@@ -231,6 +251,27 @@ const (
 	VirtualMachineMigratable VirtualMachineConditionType = "Migratable"
 	VirtualMachineReady      VirtualMachineConditionType = "Ready"
 )
+
+type VolumeStatus struct {
+	Name          string               `json:"name"`
+	Phase         VolumePhase          `json:"phase,omitempty"`
+	HotplugVolume *HotplugVolumeStatus `json:"hotplugVolume,omitempty"`
+}
+
+type VolumePhase string
+
+const (
+	VolumePending        VolumePhase = "Pending"
+	VolumeAttachedToNode VolumePhase = "AttachedToNode"
+	VolumeMountedToPod   VolumePhase = "MountedToPod"
+	VolumeReady          VolumePhase = "Ready"
+	VolumeDetaching      VolumePhase = "Detaching"
+)
+
+type HotplugVolumeStatus struct {
+	VolumePodName string    `json:"volumePodName,omitempty"`
+	VolumePodUID  types.UID `json:"volumePodUID,omitempty"`
+}
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 

@@ -21,7 +21,6 @@ import (
 	"github.com/namsral/flag"
 	"github.com/subgraph/libmacouflage"
 	"github.com/vishvananda/netlink"
-	"k8s.io/apimachinery/pkg/api/resource"
 
 	virtv1alpha1 "github.com/smartxworks/virtink/pkg/apis/virt/v1alpha1"
 	"github.com/smartxworks/virtink/pkg/cloudhypervisor"
@@ -31,10 +30,8 @@ import (
 func main() {
 	var vmData string
 	var receiveMigration bool
-	extraVFIOMemoryLockSize := resource.QuantityValue{Quantity: resource.MustParse("1Gi")}
 	flag.StringVar(&vmData, "vm-data", vmData, "Base64 encoded VM json data")
 	flag.BoolVar(&receiveMigration, "receive-migration", receiveMigration, "Receive migration instead of starting a new VM")
-	flag.Var(&extraVFIOMemoryLockSize, "extra-vfio-memory-lock-size", "The extra memory lock size for VFIO devices")
 	flag.Parse()
 
 	vmJSON, err := base64.StdEncoding.DecodeString(vmData)
@@ -66,10 +63,6 @@ func main() {
 	}
 	vmConfigFile.Close()
 
-	// TODO set prlimit for cloud-hypervisor process by PID
-	if len(vmConfig.Devices) > 0 {
-		//cloudHypervisorCmd = append([]string{"prlimit", fmt.Sprintf("--memlock=%v", vmConfig.Memory.Size+extraVFIOMemoryLockSize.Value())}, cloudHypervisorCmd...)
-	}
 	log.Println("Succeeded to setup")
 }
 
@@ -133,6 +126,11 @@ func buildVMConfig(ctx context.Context, vm *virtv1alpha1.VirtualMachine) (*cloud
 		vmConfig.Memory.Hugepages = true
 	}
 
+	blockVolumes := map[string]bool{}
+	for _, volume := range strings.Split(os.Getenv("BLOCK_VOLUMES"), ",") {
+		blockVolumes[volume] = true
+	}
+
 	for _, disk := range vm.Spec.Instance.Disks {
 		for _, volume := range vm.Spec.Volumes {
 			if volume.Name == disk.Name {
@@ -148,13 +146,18 @@ func buildVMConfig(ctx context.Context, vm *virtv1alpha1.VirtualMachine) (*cloud
 				case volume.ContainerRootfs != nil:
 					diskConfig.Path = fmt.Sprintf("/mnt/%s/rootfs.raw", volume.Name)
 				case volume.PersistentVolumeClaim != nil, volume.DataVolume != nil:
-					diskConfig.Path = fmt.Sprintf("/mnt/%s", volume.Name)
-					fileInfo, err := os.Stat(diskConfig.Path)
-					if err != nil {
-						return nil, err
-					}
-					if fileInfo.IsDir() {
-						diskConfig.Path = filepath.Join(diskConfig.Path, "disk.img")
+					if blockVolumes[volume.Name] {
+						if volume.IsHotpluggable() {
+							diskConfig.Path = fmt.Sprintf("/hotplug-volumes/%s", volume.Name)
+						} else {
+							diskConfig.Path = fmt.Sprintf("/mnt/%s", volume.Name)
+						}
+					} else {
+						if volume.IsHotpluggable() {
+							diskConfig.Path = filepath.Join("/hotplug-volumes", fmt.Sprintf("%s.img", volume.Name))
+						} else {
+							diskConfig.Path = filepath.Join("/mnt", volume.Name, "disk.img")
+						}
 					}
 				default:
 					return nil, fmt.Errorf("invalid source of volume %q", volume.Name)
@@ -180,14 +183,16 @@ func buildVMConfig(ctx context.Context, vm *virtv1alpha1.VirtualMachine) (*cloud
 		for _, volume := range vm.Spec.Volumes {
 			if volume.Name == fs.Name {
 				socketPath := fmt.Sprintf("/var/run/virtink/virtiofsd/%s.sock", volume.Name)
-				if err := exec.Command("/usr/lib/qemu/virtiofsd", "--socket-path="+socketPath, "-o", "source=/mnt/"+volume.Name).Start(); err != nil {
+				if err := exec.Command("/usr/lib/qemu/virtiofsd", "--socket-path="+socketPath, "-o", "source=/mnt/"+volume.Name, "-o", "sandbox=chroot").Start(); err != nil {
 					return nil, fmt.Errorf("start virtiofsd: %s", err)
 				}
 
 				fsConfig := cloudhypervisor.FsConfig{
-					Id:     fs.Name,
-					Socket: socketPath,
-					Tag:    fs.Name,
+					Id:        fs.Name,
+					Socket:    socketPath,
+					Tag:       fs.Name,
+					NumQueues: 1,
+					QueueSize: 1024,
 				}
 				vmConfig.Fs = append(vmConfig.Fs, &fsConfig)
 				break
@@ -595,8 +600,4 @@ func executeCommand(name string, arg ...string) (string, error) {
 		return string(output), fmt.Errorf("%q: %s: %s", cmd.String(), err, output)
 	}
 	return string(output), nil
-}
-
-func getCloudHypervisorClient() *cloudhypervisor.Client {
-	return cloudhypervisor.NewClient("/var/run/virtink/ch.sock")
 }
