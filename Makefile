@@ -71,7 +71,9 @@ e2e: kind kubectl cmctl skaffold kuttl e2e-image
 	echo "e2e kind cluster: $(E2E_KIND_CLUSTER_NAME)"
 
 	$(KIND) create cluster --config test/e2e/config/kind/config.yaml --name $(E2E_KIND_CLUSTER_NAME) --kubeconfig $(E2E_KIND_CLUSTER_KUBECONFIG)
-	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) virt-controller:e2e  virt-daemon:e2e  virt-prerunner:e2e
+	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) virt-controller:e2e
+	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) virt-daemon:e2e
+	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) virt-prerunner:e2e
 
 	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) apply -f https://projectcalico.docs.tigera.io/archive/v3.23/manifests/calico.yaml
 	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) wait -n kube-system deployment calico-kube-controllers --for condition=Available --timeout -1s

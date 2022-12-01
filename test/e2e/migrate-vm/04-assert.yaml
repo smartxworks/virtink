@@ -9,6 +9,3 @@ status:
       status: "True"
     - type: Migratable
       status: "True"
-  volumeStatus:
-    - name: hp-1
-      phase: Ready

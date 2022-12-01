@@ -24,6 +24,8 @@ func TestValidateVM(t *testing.T) {
 				},
 				Disks: []virtv1alpha1.Disk{{
 					Name: "vol-1",
+				}, {
+					Name: "vol-3",
 				}},
 				FileSystems: []virtv1alpha1.FileSystem{{
 					Name: "vol-2",
@@ -50,6 +52,14 @@ func TestValidateVM(t *testing.T) {
 						ClaimName: "vol-2",
 					},
 				},
+			}, {
+				Name: "vol-3",
+				VolumeSource: virtv1alpha1.VolumeSource{
+					PersistentVolumeClaim: &virtv1alpha1.PersistentVolumeClaimVolumeSource{
+						ClaimName:    "vol-3",
+						Hotpluggable: true,
+					},
+				},
 			}},
 			Networks: []virtv1alpha1.Network{{
 				Name: "net-1",
@@ -62,6 +72,7 @@ func TestValidateVM(t *testing.T) {
 
 	tests := []struct {
 		vm            *virtv1alpha1.VirtualMachine
+		oldVM         *virtv1alpha1.VirtualMachine
 		invalidFields []string
 	}{{
 		vm: validVM,
@@ -385,6 +396,64 @@ func TestValidateVM(t *testing.T) {
 	}, {
 		vm: func() *virtv1alpha1.VirtualMachine {
 			vm := validVM.DeepCopy()
+			vm.Spec.Volumes[0].ContainerDisk.Image = "updated-container-disk-image"
+			vm.Spec.Volumes[2].PersistentVolumeClaim.ClaimName = "updated-pvc-name"
+			return vm
+		}(),
+		oldVM:         validVM.DeepCopy(),
+		invalidFields: []string{"spec.volumes[vol-1]", "spec.volumes[vol-3]"},
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			vm := validVM.DeepCopy()
+			vm.Spec.Volumes = append(vm.Spec.Volumes, virtv1alpha1.Volume{
+				Name: "hotplug-pvc-1",
+				VolumeSource: virtv1alpha1.VolumeSource{
+					PersistentVolumeClaim: &virtv1alpha1.PersistentVolumeClaimVolumeSource{
+						ClaimName:    "hotplug-pvc-1",
+						Hotpluggable: true,
+					},
+				},
+			}, virtv1alpha1.Volume{
+				Name: "hotplug-pvc-2",
+				VolumeSource: virtv1alpha1.VolumeSource{
+					PersistentVolumeClaim: &virtv1alpha1.PersistentVolumeClaimVolumeSource{
+						ClaimName:    "hotplug-pvc-2",
+						Hotpluggable: false,
+					},
+				},
+			}, virtv1alpha1.Volume{
+				Name: "hotplug-dv-1",
+				VolumeSource: virtv1alpha1.VolumeSource{
+					DataVolume: &virtv1alpha1.DataVolumeVolumeSource{
+						VolumeName:   "hotplug-dv-1",
+						Hotpluggable: true,
+					},
+				},
+			}, virtv1alpha1.Volume{
+				Name: "hotplug-dv-2",
+				VolumeSource: virtv1alpha1.VolumeSource{
+					PersistentVolumeClaim: &virtv1alpha1.PersistentVolumeClaimVolumeSource{
+						ClaimName:    "hotplug-dv-2",
+						Hotpluggable: false,
+					},
+				},
+			})
+			return vm
+		}(),
+		oldVM:         validVM.DeepCopy(),
+		invalidFields: []string{"spec.volumes[hotplug-pvc-2]", "spec.volumes[hotplug-dv-2]"},
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			vm := validVM.DeepCopy()
+			vm.Spec.Volumes = []virtv1alpha1.Volume{vm.Spec.Volumes[1]}
+			vm.Spec.Instance.Disks = []virtv1alpha1.Disk{}
+			return vm
+		}(),
+		oldVM:         validVM.DeepCopy(),
+		invalidFields: []string{"spec.volumes[vol-1]"},
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			vm := validVM.DeepCopy()
 			vm.Spec.Networks[0].Name = ""
 			return vm
 		}(),
@@ -406,9 +475,9 @@ func TestValidateVM(t *testing.T) {
 	}}
 
 	for _, tc := range tests {
-		errs := ValidateVM(context.Background(), tc.vm, nil)
+		errs := ValidateVM(context.Background(), tc.vm, tc.oldVM)
 		for _, err := range errs {
-			assert.Contains(t, tc.invalidFields, err.Field)
+			assert.Contains(t, tc.invalidFields, err.Field, err.Detail)
 		}
 	}
 }
@@ -431,6 +500,7 @@ func TestMutateVM(t *testing.T) {
 
 	tests := []struct {
 		vm     *virtv1alpha1.VirtualMachine
+		oldVM  *virtv1alpha1.VirtualMachine
 		assert func(vm *virtv1alpha1.VirtualMachine)
 	}{{
 		vm: func() *virtv1alpha1.VirtualMachine {
@@ -501,6 +571,18 @@ func TestMutateVM(t *testing.T) {
 		vm: func() *virtv1alpha1.VirtualMachine {
 			return oldVM.DeepCopy()
 		}(),
+		oldVM: func() *virtv1alpha1.VirtualMachine {
+			vm := oldVM.DeepCopy()
+			vm.Spec.Instance.Interfaces[0].MAC = "52:54:00:dd:0d:5b"
+			return vm
+		}(),
+		assert: func(vm *virtv1alpha1.VirtualMachine) {
+			assert.Equal(t, "52:54:00:dd:0d:5b", vm.Spec.Instance.Interfaces[0].MAC)
+		},
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			return oldVM.DeepCopy()
+		}(),
 		assert: func(vm *virtv1alpha1.VirtualMachine) {
 			assert.NotNil(t, vm.Spec.Instance.Interfaces[0].Bridge)
 		},
@@ -517,7 +599,7 @@ func TestMutateVM(t *testing.T) {
 		},
 	}}
 	for _, tc := range tests {
-		err := MutateVM(context.Background(), tc.vm, nil)
+		err := MutateVM(context.Background(), tc.vm, tc.oldVM)
 		assert.Nil(t, err)
 		tc.assert(tc.vm)
 	}

@@ -1,0 +1,56 @@
+apiVersion: virt.virtink.smartx.com/v1alpha1
+kind: VirtualMachine
+metadata:
+  name: ubuntu-datavolume
+spec:
+  readinessProbe:
+    httpGet:
+      scheme: HTTP
+      port: 80
+  instance:
+    memory:
+      size: 1Gi
+    disks:
+      - name: ubuntu
+      - name: cloud-init
+      - name: hp-1
+    interfaces:
+      - name: pod
+        masquerade: {}
+  volumes:
+    - name: ubuntu
+      dataVolume:
+        volumeName: ubuntu
+    - name: cloud-init
+      cloudInit:
+        userData: |-
+          #cloud-config
+          password: password
+          chpasswd: { expire: False }
+          ssh_pwauth: True
+          packages:
+            - nginx
+          runcmd:
+            - [ "systemctl", "enable", "--now", "nginx" ]
+    - name: hp-1
+      dataVolume:
+        volumeName: hp-1
+        hotpluggable: true
+  networks:
+    - name: pod
+      pod: {}
+---
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: hp-1
+spec:
+  source:
+    blank: {}
+  pvc:
+    storageClassName: rook-nfs-share1
+    accessModes:
+      - ReadWriteMany
+    resources:
+      requests:
+        storage: 8Gi

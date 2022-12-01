@@ -1381,6 +1381,8 @@ spec:
                       type: object
                     dataVolume:
                       properties:
+                        hotpluggable:
+                          type: boolean
                         volumeName:
                           type: string
                       required:
@@ -1392,6 +1394,8 @@ spec:
                       properties:
                         claimName:
                           type: string
+                        hotpluggable:
+                          type: boolean
                       required:
                       - claimName
                       type: object
@@ -1500,6 +1504,12 @@ spec:
                       string.  Being a type captures intent and helps make sure that
                       UIDs and names do not get conflated.
                     type: string
+                  targetVolumePodUID:
+                    description: UID is a type that holds unique ID values, including
+                      UUIDs.  Because we don't ONLY use UUIDs, this is an alias to
+                      string.  Being a type captures intent and helps make sure that
+                      UIDs and names do not get conflated.
+                    type: string
                   uid:
                     description: UID is a type that holds unique ID values, including
                       UUIDs.  Because we don't ONLY use UUIDs, this is an alias to
@@ -1537,6 +1547,28 @@ spec:
                   a type captures intent and helps make sure that UIDs and names do
                   not get conflated.
                 type: string
+              volumeStatus:
+                items:
+                  properties:
+                    hotplugVolume:
+                      properties:
+                        volumePodName:
+                          type: string
+                        volumePodUID:
+                          description: UID is a type that holds unique ID values,
+                            including UUIDs.  Because we don't ONLY use UUIDs, this
+                            is an alias to string.  Being a type captures intent and
+                            helps make sure that UIDs and names do not get conflated.
+                          type: string
+                      type: object
+                    name:
+                      type: string
+                    phase:
+                      type: string
+                  required:
+                  - name
+                  type: object
+                type: array
             type: object
         required:
         - spec
