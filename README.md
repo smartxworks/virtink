@@ -26,7 +26,7 @@ Virtink consists of 3 components:
 
 A few requirements need to be met before you can begin:
 
-- Kubernetes cluster v1.16 ~ v1.24
+- Kubernetes cluster v1.16 ~ v1.25
 - Kubernetes apiserver must have `--allow-privileged=true` in order to run Virtink's privileged DaemonSet. It's usually set by default.
 - [cert-manager](https://cert-manager.io/) v1.0 ~ v1.8 installed in Kubernetes cluster. You can install it with `kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.8.2/cert-manager.yaml`.
 
@@ -53,7 +53,7 @@ Hardware with virtualization support is required. You should check if `/dev/kvm`
 Install all Virtink components:
 
 ```bash
-kubectl apply -f https://github.com/smartxworks/virtink/releases/download/v0.11.0/virtink.yaml
+kubectl apply -f https://github.com/smartxworks/virtink/releases/download/v0.13.0/virtink.yaml
 ```
 
 Once you have deployed Virtink, you can [create your virtual machines](#create-a-vm).
