@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	netv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -60,9 +62,6 @@ func (r *VMReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Re
 
 	status := vm.Status.DeepCopy()
 	rerr := r.reconcile(ctx, &vm)
-	if rerr != nil {
-		r.Recorder.Eventf(&vm, corev1.EventTypeWarning, "FailedReconcile", "Failed to reconcile VM: %s", rerr)
-	}
 
 	if !reflect.DeepEqual(vm.Status, status) {
 		if err := r.Status().Update(ctx, &vm); err != nil {
@@ -77,6 +76,12 @@ func (r *VMReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Re
 	}
 
 	if rerr != nil {
+		reconcileErr := reconcileError{}
+		if errors.As(rerr, &reconcileErr) {
+			return reconcileErr.Result, nil
+		}
+
+		r.Recorder.Eventf(&vm, corev1.EventTypeWarning, "FailedReconcile", "Failed to reconcile VM: %s", rerr)
 		return ctrl.Result{}, rerr
 	}
 
@@ -138,7 +143,7 @@ func (r *VMReconciler) reconcile(ctx context.Context, vm *virtv1alpha1.VirtualMa
 			if vm.Status.Phase == virtv1alpha1.VirtualMachineScheduling {
 				vmPod, err := r.buildVMPod(ctx, vm)
 				if err != nil {
-					return fmt.Errorf("build VM Pod: %s", err)
+					return fmt.Errorf("build VM Pod: %w", err)
 				}
 
 				vmPod.Name = vmPodKey.Name
@@ -577,7 +582,7 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 				return nil, err
 			}
 			if !ready {
-				return nil, fmt.Errorf("data volume is not ready: %s", volume.DataVolume.VolumeName)
+				return nil, reconcileError{Result: ctrl.Result{RequeueAfter: 3 * time.Second}}
 			}
 
 			isBlock, err := volumeutil.IsBlock(ctx, r.Client, vm.Namespace, volume)
@@ -1243,6 +1248,26 @@ func (r *VMReconciler) SetupWithManager(mgr ctrl.Manager) error {
 						Name:      controllerRef.Name,
 					},
 				}}
+			})).
+		Watches(&source.Kind{Type: &corev1.PersistentVolumeClaim{}},
+			handler.EnqueueRequestsFromMapFunc(func(obj client.Object) []reconcile.Request {
+				if _, ok := obj.(*corev1.PersistentVolumeClaim); !ok {
+					return nil
+				}
+				var vmList virtv1alpha1.VirtualMachineList
+				if err := r.Client.List(context.Background(), &vmList, client.InNamespace(obj.GetNamespace())); err != nil {
+					return nil
+				}
+				requests := []reconcile.Request{}
+				for _, vm := range vmList.Items {
+					requests = append(requests, reconcile.Request{
+						NamespacedName: types.NamespacedName{
+							Namespace: vm.Namespace,
+							Name:      vm.Name,
+						},
+					})
+				}
+				return requests
 			})).
 		Complete(r)
 }
