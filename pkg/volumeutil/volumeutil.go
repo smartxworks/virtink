@@ -3,9 +3,9 @@ package volumeutil
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	cdiv1beta1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -18,6 +18,9 @@ func IsBlock(ctx context.Context, c client.Client, namespace string, volume virt
 	if err != nil {
 		return false, err
 	}
+	if pvc == nil {
+		return false, errors.New("pvc not found")
+	}
 	return pvc.Spec.VolumeMode != nil && *pvc.Spec.VolumeMode == corev1.PersistentVolumeBlock, nil
 }
 
@@ -28,6 +31,10 @@ func IsReady(ctx context.Context, c client.Client, namespace string, volume virt
 	pvc, err := getPVC(ctx, c, namespace, volume)
 	if err != nil {
 		return false, err
+	}
+
+	if pvc == nil {
+		return false, nil
 	}
 
 	var getDataVolumeFunc = func(name, namespace string) (*cdiv1beta1.DataVolume, error) {
@@ -61,7 +68,10 @@ func getPVC(ctx context.Context, c client.Client, namespace string, volume virtv
 	}
 	var pvc corev1.PersistentVolumeClaim
 	if err := c.Get(ctx, pvcKey, &pvc); err != nil {
-		return nil, fmt.Errorf("get PVC: %s", err)
+		if apierrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
 	}
 	return &pvc, nil
 }
