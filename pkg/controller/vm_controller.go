@@ -1126,6 +1126,15 @@ func (r *VMReconciler) calculateMigratableCondition(ctx context.Context, vm *vir
 		}
 	}
 
+	if len(vm.Spec.Instance.FileSystems) > 0 {
+		return &metav1.Condition{
+			Type:    string(virtv1alpha1.VirtualMachineMigratable),
+			Status:  metav1.ConditionFalse,
+			Reason:  "FileSystemNotMigratable",
+			Message: "migration is disabled when VM has a fileSystem",
+		}, nil
+	}
+
 	return &metav1.Condition{
 		Type:   string(virtv1alpha1.VirtualMachineMigratable),
 		Status: metav1.ConditionTrue,
