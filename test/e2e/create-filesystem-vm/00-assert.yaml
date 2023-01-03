@@ -1,0 +1,11 @@
+apiVersion: virt.virtink.smartx.com/v1alpha1
+kind: VirtualMachine
+metadata:
+  name: ubuntu-filesystem
+status:
+  phase: Running
+  conditions:
+    - type: Ready
+      status: "True"
+    - type: Migratable
+      status: "False"

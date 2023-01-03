@@ -1,0 +1,59 @@
+apiVersion: virt.virtink.smartx.com/v1alpha1
+kind: VirtualMachine
+metadata:
+  name: ubuntu-filesystem
+spec:
+  readinessProbe:
+    httpGet:
+      scheme: HTTP
+      path: disk.img
+      port: 80
+  instance:
+    memory:
+      size: 1Gi
+    disks:
+      - name: ubuntu
+      - name: cloud-init
+    fileSystems:
+      - name: blank
+    interfaces:
+      - name: pod
+  volumes:
+    - name: ubuntu
+      containerDisk:
+        image: smartxworks/virtink-container-disk-ubuntu
+    - name: cloud-init
+      cloudInit:
+        userData: |-
+          #cloud-config
+          password: password
+          chpasswd: { expire: False }
+          ssh_pwauth: True
+          packages:
+            - nginx
+          runcmd:
+            - [ "systemctl", "enable", "--now", "nginx" ]
+            - [ "mount", "-t", "virtiofs", "blank", "/var/www/html" ]
+            - [ "chmod", "-R", "777", "/var/www/html" ]
+            - [ "systemctl", "restart", "nginx" ]
+    - name: blank
+      dataVolume:
+        volumeName: blank
+  networks:
+    - name: pod
+      pod: {}
+---
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: blank
+spec:
+  source:
+    blank: {}
+  pvc:
+    storageClassName: rook-nfs-share1
+    accessModes:
+      - ReadWriteMany
+    resources:
+      requests:
+        storage: 1Mi
