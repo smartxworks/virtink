@@ -80,7 +80,9 @@ func (r *VMReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Re
 				}
 				return ctrl.Result{}, fmt.Errorf("update VM status: %s", err)
 			}
-			ctrl.LoggerFrom(ctx).Error(err, "update VM status")
+			if !apierrors.IsConflict(err) {
+				ctrl.LoggerFrom(ctx).Error(err, "update VM status")
+			}
 		}
 	}
 

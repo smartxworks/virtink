@@ -2,5 +2,5 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestSuite
 testDirs:
   - test/e2e
-timeout: 600
+timeout: 900
 parallel: 1

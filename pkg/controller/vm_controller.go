@@ -71,7 +71,9 @@ func (r *VMReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Re
 				}
 				return ctrl.Result{}, fmt.Errorf("update VM status: %s", err)
 			}
-			ctrl.LoggerFrom(ctx).Error(err, "update VM status")
+			if !apierrors.IsConflict(err) {
+				ctrl.LoggerFrom(ctx).Error(err, "update VM status")
+			}
 		}
 	}
 
@@ -582,7 +584,7 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 				return nil, err
 			}
 			if !ready {
-				return nil, reconcileError{Result: ctrl.Result{RequeueAfter: 3 * time.Second}}
+				return nil, reconcileError{Result: ctrl.Result{RequeueAfter: time.Minute}}
 			}
 
 			isBlock, err := volumeutil.IsBlock(ctx, r.Client, vm.Namespace, volume)
@@ -1041,6 +1043,12 @@ func (r *VMReconciler) updateHotplugVolumeStatus(ctx context.Context, vm *virtv1
 		}
 	}
 	vm.Status.VolumeStatus = newVolumeStatus
+
+	for _, status := range vm.Status.VolumeStatus {
+		if status.Phase == virtv1alpha1.VolumePending {
+			return reconcileError{ctrl.Result{RequeueAfter: time.Minute}}
+		}
+	}
 	return nil
 }
 
@@ -1260,12 +1268,17 @@ func (r *VMReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				}
 				requests := []reconcile.Request{}
 				for _, vm := range vmList.Items {
-					requests = append(requests, reconcile.Request{
-						NamespacedName: types.NamespacedName{
-							Namespace: vm.Namespace,
-							Name:      vm.Name,
-						},
-					})
+					for _, volume := range vm.Spec.Volumes {
+						if volume.PVCName() == obj.GetName() {
+							requests = append(requests, reconcile.Request{
+								NamespacedName: types.NamespacedName{
+									Namespace: vm.Namespace,
+									Name:      vm.Name,
+								},
+							})
+							break
+						}
+					}
 				}
 				return requests
 			})).
