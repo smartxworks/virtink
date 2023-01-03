@@ -41,9 +41,9 @@ metadata:
   name: ubuntu
 spec:
   source:
-      http:
-        #url: https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img
-        url: http://192.168.17.20/kubrid/images/jammy-server-cloudimg-amd64.img
+    http:
+      #url: https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img
+      url: http://192.168.17.20/kubrid/images/jammy-server-cloudimg-amd64.img
   pvc:
     storageClassName: rook-nfs-share1
     accessModes:

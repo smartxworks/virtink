@@ -75,17 +75,41 @@ e2e: kind kubectl cmctl skaffold kuttl e2e-image
 	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) virt-daemon:e2e
 	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) virt-prerunner:e2e
 
+	docker pull docker.io/calico/cni:v3.23.5
+	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) docker.io/calico/cni:v3.23.5
+	docker pull docker.io/calico/node:v3.23.5
+	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) docker.io/calico/node:v3.23.5
+	docker pull docker.io/calico/kube-controllers:v3.23.5
+	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) docker.io/calico/kube-controllers:v3.23.5
 	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) apply -f https://projectcalico.docs.tigera.io/archive/v3.23/manifests/calico.yaml
 	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) wait -n kube-system deployment calico-kube-controllers --for condition=Available --timeout -1s
 
+	docker pull quay.io/jetstack/cert-manager-controller:v1.8.2
+	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) quay.io/jetstack/cert-manager-controller:v1.8.2
+	docker pull quay.io/jetstack/cert-manager-cainjector:v1.8.2
+	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) quay.io/jetstack/cert-manager-cainjector:v1.8.2
+	docker pull quay.io/jetstack/cert-manager-webhook:v1.8.2
+	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) quay.io/jetstack/cert-manager-webhook:v1.8.2
 	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.8.2/cert-manager.yaml
 	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(CMCTL) check api --wait=10m
 
+	docker pull quay.io/kubevirt/cdi-operator:v1.53.0
+	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) quay.io/kubevirt/cdi-operator:v1.53.0
+	docker pull quay.io/kubevirt/cdi-apiserver:v1.53.0
+	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) quay.io/kubevirt/cdi-apiserver:v1.53.0
+	docker pull  quay.io/kubevirt/cdi-controller:v1.53.0
+	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) quay.io/kubevirt/cdi-controller:v1.53.0
+	docker pull quay.io/kubevirt/cdi-uploadproxy:v1.53.0
+	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) quay.io/kubevirt/cdi-uploadproxy:v1.53.0
+	docker pull quay.io/kubevirt/cdi-importer:v1.53.0
+	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) quay.io/kubevirt/cdi-importer:v1.53.0
 	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) apply -f https://github.com/kubevirt/containerized-data-importer/releases/download/v1.53.0/cdi-operator.yaml
 	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) wait -n cdi deployment cdi-operator --for condition=Available --timeout -1s
 	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) apply -f https://github.com/kubevirt/containerized-data-importer/releases/download/v1.53.0/cdi-cr.yaml
 	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) wait cdi.cdi.kubevirt.io cdi --for condition=Available --timeout -1s
 
+	docker pull rook/nfs:master
+	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) rook/nfs:master
 	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) apply -f test/e2e/config/rook-nfs/crds.yaml
 	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) wait crd nfsservers.nfs.rook.io --for condition=Established
 	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) apply -f test/e2e/config/rook-nfs/
@@ -93,6 +117,12 @@ e2e: kind kubectl cmctl skaffold kuttl e2e-image
 	PATH=$(LOCALBIN):$(PATH) $(SKAFFOLD) render --offline=true --default-repo="" --digest-source=tag --images virt-controller:e2e,virt-daemon:e2e | KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) apply -f -
 	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) wait -n virtink-system deployment virt-controller --for condition=Available --timeout -1s
 
+	docker pull smartxworks/virtink-kernel-5.15.12
+	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) smartxworks/virtink-kernel-5.15.12
+	docker pull smartxworks/virtink-container-disk-ubuntu
+	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) smartxworks/virtink-container-disk-ubuntu
+	docker pull smartxworks/virtink-container-rootfs-ubuntu
+	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) smartxworks/virtink-container-rootfs-ubuntu
 	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUTTL) test --config test/e2e/kuttl-test.yaml
 
 	$(KIND) delete cluster --name $(E2E_KIND_CLUSTER_NAME)
