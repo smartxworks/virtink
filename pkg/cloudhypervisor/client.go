@@ -36,7 +36,7 @@ func (c *Client) VmAddDevice(ctx context.Context, arg *DeviceConfig) (*PciDevice
 		return nil, fmt.Errorf("encode request: %s", err)
 	}
 
-	req, err := http.NewRequest("PUT", "http://localhost/api/v1/vm.add-device", bytes.NewBuffer(reqBody))
+	req, err := http.NewRequestWithContext(ctx, "PUT", "http://localhost/api/v1/vm.add-device", bytes.NewBuffer(reqBody))
 	if err != nil {
 		return nil, fmt.Errorf("build request: %s", err)
 	}
@@ -67,7 +67,7 @@ func (c *Client) VmAddDisk(ctx context.Context, arg *DiskConfig) (*PciDeviceInfo
 		return nil, fmt.Errorf("encode request: %s", err)
 	}
 
-	req, err := http.NewRequest("PUT", "http://localhost/api/v1/vm.add-disk", bytes.NewBuffer(reqBody))
+	req, err := http.NewRequestWithContext(ctx, "PUT", "http://localhost/api/v1/vm.add-disk", bytes.NewBuffer(reqBody))
 	if err != nil {
 		return nil, fmt.Errorf("build request: %s", err)
 	}
@@ -98,7 +98,7 @@ func (c *Client) VmAddFs(ctx context.Context, arg *FsConfig) (*PciDeviceInfo, er
 		return nil, fmt.Errorf("encode request: %s", err)
 	}
 
-	req, err := http.NewRequest("PUT", "http://localhost/api/v1/vm.add-fs", bytes.NewBuffer(reqBody))
+	req, err := http.NewRequestWithContext(ctx, "PUT", "http://localhost/api/v1/vm.add-fs", bytes.NewBuffer(reqBody))
 	if err != nil {
 		return nil, fmt.Errorf("build request: %s", err)
 	}
@@ -129,7 +129,7 @@ func (c *Client) VmAddNet(ctx context.Context, arg *NetConfig) (*PciDeviceInfo, 
 		return nil, fmt.Errorf("encode request: %s", err)
 	}
 
-	req, err := http.NewRequest("PUT", "http://localhost/api/v1/vm.add-net", bytes.NewBuffer(reqBody))
+	req, err := http.NewRequestWithContext(ctx, "PUT", "http://localhost/api/v1/vm.add-net", bytes.NewBuffer(reqBody))
 	if err != nil {
 		return nil, fmt.Errorf("build request: %s", err)
 	}
@@ -160,7 +160,7 @@ func (c *Client) VmAddPmem(ctx context.Context, arg *PmemConfig) (*PciDeviceInfo
 		return nil, fmt.Errorf("encode request: %s", err)
 	}
 
-	req, err := http.NewRequest("PUT", "http://localhost/api/v1/vm.add-pmem", bytes.NewBuffer(reqBody))
+	req, err := http.NewRequestWithContext(ctx, "PUT", "http://localhost/api/v1/vm.add-pmem", bytes.NewBuffer(reqBody))
 	if err != nil {
 		return nil, fmt.Errorf("build request: %s", err)
 	}
@@ -191,7 +191,7 @@ func (c *Client) VmAddVdpa(ctx context.Context, arg *VdpaConfig) (*PciDeviceInfo
 		return nil, fmt.Errorf("encode request: %s", err)
 	}
 
-	req, err := http.NewRequest("PUT", "http://localhost/api/v1/vm.add-vdpa", bytes.NewBuffer(reqBody))
+	req, err := http.NewRequestWithContext(ctx, "PUT", "http://localhost/api/v1/vm.add-vdpa", bytes.NewBuffer(reqBody))
 	if err != nil {
 		return nil, fmt.Errorf("build request: %s", err)
 	}
@@ -222,7 +222,7 @@ func (c *Client) VmAddVsock(ctx context.Context, arg *VsockConfig) (*PciDeviceIn
 		return nil, fmt.Errorf("encode request: %s", err)
 	}
 
-	req, err := http.NewRequest("PUT", "http://localhost/api/v1/vm.add-vsock", bytes.NewBuffer(reqBody))
+	req, err := http.NewRequestWithContext(ctx, "PUT", "http://localhost/api/v1/vm.add-vsock", bytes.NewBuffer(reqBody))
 	if err != nil {
 		return nil, fmt.Errorf("build request: %s", err)
 	}
@@ -249,7 +249,7 @@ func (c *Client) VmAddVsock(ctx context.Context, arg *VsockConfig) (*PciDeviceIn
 // Boot the previously created VM instance.
 func (c *Client) VmBoot(ctx context.Context) error {
 
-	req, err := http.NewRequest("PUT", "http://localhost/api/v1/vm.boot", nil)
+	req, err := http.NewRequestWithContext(ctx, "PUT", "http://localhost/api/v1/vm.boot", nil)
 	if err != nil {
 		return fmt.Errorf("build request: %s", err)
 	}
@@ -275,7 +275,7 @@ func (c *Client) VmCoredump(ctx context.Context, arg *VmCoredumpData) error {
 		return fmt.Errorf("encode request: %s", err)
 	}
 
-	req, err := http.NewRequest("PUT", "http://localhost/api/v1/vm.coredump", bytes.NewBuffer(reqBody))
+	req, err := http.NewRequestWithContext(ctx, "PUT", "http://localhost/api/v1/vm.coredump", bytes.NewBuffer(reqBody))
 	if err != nil {
 		return fmt.Errorf("build request: %s", err)
 	}
@@ -297,7 +297,7 @@ func (c *Client) VmCoredump(ctx context.Context, arg *VmCoredumpData) error {
 // Get counters from the VM
 func (c *Client) VmCounters(ctx context.Context) (*VmCounters, error) {
 
-	req, err := http.NewRequest("GET", "http://localhost/api/v1/vm.counters", nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost/api/v1/vm.counters", nil)
 	if err != nil {
 		return nil, fmt.Errorf("build request: %s", err)
 	}
@@ -328,7 +328,7 @@ func (c *Client) VmCreate(ctx context.Context, arg *VmConfig) error {
 		return fmt.Errorf("encode request: %s", err)
 	}
 
-	req, err := http.NewRequest("PUT", "http://localhost/api/v1/vm.create", bytes.NewBuffer(reqBody))
+	req, err := http.NewRequestWithContext(ctx, "PUT", "http://localhost/api/v1/vm.create", bytes.NewBuffer(reqBody))
 	if err != nil {
 		return fmt.Errorf("build request: %s", err)
 	}
@@ -350,7 +350,7 @@ func (c *Client) VmCreate(ctx context.Context, arg *VmConfig) error {
 // Delete the cloud-hypervisor Virtual Machine (VM) instance.
 func (c *Client) VmDelete(ctx context.Context) error {
 
-	req, err := http.NewRequest("PUT", "http://localhost/api/v1/vm.delete", nil)
+	req, err := http.NewRequestWithContext(ctx, "PUT", "http://localhost/api/v1/vm.delete", nil)
 	if err != nil {
 		return fmt.Errorf("build request: %s", err)
 	}
@@ -372,7 +372,7 @@ func (c *Client) VmDelete(ctx context.Context) error {
 // Returns general information about the cloud-hypervisor Virtual Machine (VM) instance.
 func (c *Client) VmInfo(ctx context.Context) (*VmInfo, error) {
 
-	req, err := http.NewRequest("GET", "http://localhost/api/v1/vm.info", nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost/api/v1/vm.info", nil)
 	if err != nil {
 		return nil, fmt.Errorf("build request: %s", err)
 	}
@@ -399,7 +399,7 @@ func (c *Client) VmInfo(ctx context.Context) (*VmInfo, error) {
 // Pause a previously booted VM instance.
 func (c *Client) VmPause(ctx context.Context) error {
 
-	req, err := http.NewRequest("PUT", "http://localhost/api/v1/vm.pause", nil)
+	req, err := http.NewRequestWithContext(ctx, "PUT", "http://localhost/api/v1/vm.pause", nil)
 	if err != nil {
 		return fmt.Errorf("build request: %s", err)
 	}
@@ -421,7 +421,7 @@ func (c *Client) VmPause(ctx context.Context) error {
 // Trigger a power button in the VM
 func (c *Client) VmPowerButton(ctx context.Context) error {
 
-	req, err := http.NewRequest("PUT", "http://localhost/api/v1/vm.power-button", nil)
+	req, err := http.NewRequestWithContext(ctx, "PUT", "http://localhost/api/v1/vm.power-button", nil)
 	if err != nil {
 		return fmt.Errorf("build request: %s", err)
 	}
@@ -443,7 +443,7 @@ func (c *Client) VmPowerButton(ctx context.Context) error {
 // Reboot the VM instance.
 func (c *Client) VmReboot(ctx context.Context) error {
 
-	req, err := http.NewRequest("PUT", "http://localhost/api/v1/vm.reboot", nil)
+	req, err := http.NewRequestWithContext(ctx, "PUT", "http://localhost/api/v1/vm.reboot", nil)
 	if err != nil {
 		return fmt.Errorf("build request: %s", err)
 	}
@@ -469,7 +469,7 @@ func (c *Client) VmReceiveMigration(ctx context.Context, arg *ReceiveMigrationDa
 		return fmt.Errorf("encode request: %s", err)
 	}
 
-	req, err := http.NewRequest("PUT", "http://localhost/api/v1/vm.receive-migration", bytes.NewBuffer(reqBody))
+	req, err := http.NewRequestWithContext(ctx, "PUT", "http://localhost/api/v1/vm.receive-migration", bytes.NewBuffer(reqBody))
 	if err != nil {
 		return fmt.Errorf("build request: %s", err)
 	}
@@ -495,7 +495,7 @@ func (c *Client) VmRemoveDevice(ctx context.Context, arg *VmRemoveDevice) error 
 		return fmt.Errorf("encode request: %s", err)
 	}
 
-	req, err := http.NewRequest("PUT", "http://localhost/api/v1/vm.remove-device", bytes.NewBuffer(reqBody))
+	req, err := http.NewRequestWithContext(ctx, "PUT", "http://localhost/api/v1/vm.remove-device", bytes.NewBuffer(reqBody))
 	if err != nil {
 		return fmt.Errorf("build request: %s", err)
 	}
@@ -521,7 +521,7 @@ func (c *Client) VmResize(ctx context.Context, arg *VmResize) error {
 		return fmt.Errorf("encode request: %s", err)
 	}
 
-	req, err := http.NewRequest("PUT", "http://localhost/api/v1/vm.resize", bytes.NewBuffer(reqBody))
+	req, err := http.NewRequestWithContext(ctx, "PUT", "http://localhost/api/v1/vm.resize", bytes.NewBuffer(reqBody))
 	if err != nil {
 		return fmt.Errorf("build request: %s", err)
 	}
@@ -547,7 +547,7 @@ func (c *Client) VmResizeZone(ctx context.Context, arg *VmResizeZone) error {
 		return fmt.Errorf("encode request: %s", err)
 	}
 
-	req, err := http.NewRequest("PUT", "http://localhost/api/v1/vm.resize-zone", bytes.NewBuffer(reqBody))
+	req, err := http.NewRequestWithContext(ctx, "PUT", "http://localhost/api/v1/vm.resize-zone", bytes.NewBuffer(reqBody))
 	if err != nil {
 		return fmt.Errorf("build request: %s", err)
 	}
@@ -573,7 +573,7 @@ func (c *Client) VmRestore(ctx context.Context, arg *RestoreConfig) error {
 		return fmt.Errorf("encode request: %s", err)
 	}
 
-	req, err := http.NewRequest("PUT", "http://localhost/api/v1/vm.restore", bytes.NewBuffer(reqBody))
+	req, err := http.NewRequestWithContext(ctx, "PUT", "http://localhost/api/v1/vm.restore", bytes.NewBuffer(reqBody))
 	if err != nil {
 		return fmt.Errorf("build request: %s", err)
 	}
@@ -595,7 +595,7 @@ func (c *Client) VmRestore(ctx context.Context, arg *RestoreConfig) error {
 // Resume a previously paused VM instance.
 func (c *Client) VmResume(ctx context.Context) error {
 
-	req, err := http.NewRequest("PUT", "http://localhost/api/v1/vm.resume", nil)
+	req, err := http.NewRequestWithContext(ctx, "PUT", "http://localhost/api/v1/vm.resume", nil)
 	if err != nil {
 		return fmt.Errorf("build request: %s", err)
 	}
@@ -621,7 +621,7 @@ func (c *Client) VmSendMigration(ctx context.Context, arg *SendMigrationData) er
 		return fmt.Errorf("encode request: %s", err)
 	}
 
-	req, err := http.NewRequest("PUT", "http://localhost/api/v1/vm.send-migration", bytes.NewBuffer(reqBody))
+	req, err := http.NewRequestWithContext(ctx, "PUT", "http://localhost/api/v1/vm.send-migration", bytes.NewBuffer(reqBody))
 	if err != nil {
 		return fmt.Errorf("build request: %s", err)
 	}
@@ -643,7 +643,7 @@ func (c *Client) VmSendMigration(ctx context.Context, arg *SendMigrationData) er
 // Shut the VM instance down.
 func (c *Client) VmShutdown(ctx context.Context) error {
 
-	req, err := http.NewRequest("PUT", "http://localhost/api/v1/vm.shutdown", nil)
+	req, err := http.NewRequestWithContext(ctx, "PUT", "http://localhost/api/v1/vm.shutdown", nil)
 	if err != nil {
 		return fmt.Errorf("build request: %s", err)
 	}
@@ -669,7 +669,7 @@ func (c *Client) VmSnapshot(ctx context.Context, arg *VmSnapshotConfig) error {
 		return fmt.Errorf("encode request: %s", err)
 	}
 
-	req, err := http.NewRequest("PUT", "http://localhost/api/v1/vm.snapshot", bytes.NewBuffer(reqBody))
+	req, err := http.NewRequestWithContext(ctx, "PUT", "http://localhost/api/v1/vm.snapshot", bytes.NewBuffer(reqBody))
 	if err != nil {
 		return fmt.Errorf("build request: %s", err)
 	}
@@ -691,7 +691,7 @@ func (c *Client) VmSnapshot(ctx context.Context, arg *VmSnapshotConfig) error {
 // Ping the VMM to check for API server availability
 func (c *Client) VmmPing(ctx context.Context) (*VmmPingResponse, error) {
 
-	req, err := http.NewRequest("GET", "http://localhost/api/v1/vmm.ping", nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost/api/v1/vmm.ping", nil)
 	if err != nil {
 		return nil, fmt.Errorf("build request: %s", err)
 	}
@@ -718,7 +718,7 @@ func (c *Client) VmmPing(ctx context.Context) (*VmmPingResponse, error) {
 // Shuts the cloud-hypervisor VMM.
 func (c *Client) VmmShutdown(ctx context.Context) error {
 
-	req, err := http.NewRequest("PUT", "http://localhost/api/v1/vmm.shutdown", nil)
+	req, err := http.NewRequestWithContext(ctx, "PUT", "http://localhost/api/v1/vmm.shutdown", nil)
 	if err != nil {
 		return fmt.Errorf("build request: %s", err)
 	}
