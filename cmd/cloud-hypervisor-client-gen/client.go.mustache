@@ -39,7 +39,7 @@ func (c *Client) {{name}}(ctx context.Context{{#arg}}, arg {{arg}}{{/arg}}) {{#r
     }
     {{/arg}}
 
-    req, err := http.NewRequest("{{method}}", "http://localhost/api/v1{{path}}", {{#arg}}bytes.NewBuffer(reqBody){{/arg}}{{^arg}}nil{{/arg}})
+    req, err := http.NewRequestWithContext(ctx, "{{method}}", "http://localhost/api/v1{{path}}", {{#arg}}bytes.NewBuffer(reqBody){{/arg}}{{^arg}}nil{{/arg}})
     if err != nil {
         return {{#ret}}nil, {{/ret}}fmt.Errorf("build request: %s", err)
     }

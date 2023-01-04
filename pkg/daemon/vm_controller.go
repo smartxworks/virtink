@@ -386,7 +386,9 @@ func (r *VMReconciler) reconcile(ctx context.Context, vm *virtv1alpha1.VirtualMa
 				}
 			case virtv1alpha1.VirtualMachineMigrationSent:
 				if vm.Status.Migration.TargetNodeName == r.NodeName {
-					vmInfo, err := r.getMigrationTargetCloudHypervisorClient(vm).VmInfo(ctx)
+					timeoutCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+					defer cancel()
+					vmInfo, err := r.getMigrationTargetCloudHypervisorClient(vm).VmInfo(timeoutCtx)
 					if err != nil {
 						return err
 					}
