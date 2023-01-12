@@ -21,6 +21,7 @@ import (
 	"github.com/namsral/flag"
 	"github.com/subgraph/libmacouflage"
 	"github.com/vishvananda/netlink"
+	netutils "k8s.io/utils/net"
 
 	virtv1alpha1 "github.com/smartxworks/virtink/pkg/apis/virt/v1alpha1"
 	"github.com/smartxworks/virtink/pkg/cloudhypervisor"
@@ -237,7 +238,7 @@ func buildVMConfig(ctx context.Context, vm *virtv1alpha1.VirtualMachine) (*cloud
 					Id:  iface.Name,
 					Mac: iface.MAC,
 				}
-				if err := setupMasqueradeNetwork(linkName, iface.Masquerade.CIDR, &netConfig); err != nil {
+				if err := setupMasqueradeNetwork(linkName, iface.Masquerade.IPv4CIDR, iface.Masquerade.IPv6CIDR, &netConfig); err != nil {
 					return nil, fmt.Errorf("setup masquerade network: %s", err)
 				}
 				vmConfig.Net = append(vmConfig.Net, &netConfig)
@@ -277,19 +278,10 @@ func buildVMConfig(ctx context.Context, vm *virtv1alpha1.VirtualMachine) (*cloud
 	return &vmConfig, nil
 }
 
-func setupBridgeNetwork(linkName string, cidr string, netConfig *cloudhypervisor.NetConfig) error {
-	_, subnet, err := net.ParseCIDR(cidr)
+func setupBridgeNetwork(linkName string, ipv4CIDR string, netConfig *cloudhypervisor.NetConfig) error {
+	bridgeIPv4Net, err := generateBridgeIPNet(ipv4CIDR)
 	if err != nil {
-		return fmt.Errorf("parse CIDR: %s", err)
-	}
-
-	bridgeIP, err := nextIP(subnet.IP, subnet)
-	if err != nil {
-		return fmt.Errorf("generate bridge IP: %s", err)
-	}
-	bridgeIPNet := net.IPNet{
-		IP:   bridgeIP,
-		Mask: subnet.Mask,
+		return fmt.Errorf("generate bridge IPv4 net: %s", err)
 	}
 
 	link, err := netlink.LinkByName(linkName)
@@ -299,7 +291,7 @@ func setupBridgeNetwork(linkName string, cidr string, netConfig *cloudhypervisor
 	netConfig.Mtu = link.Attrs().MTU
 
 	bridgeName := fmt.Sprintf("br-%s", linkName)
-	bridge, err := createBridge(bridgeName, &bridgeIPNet, link.Attrs().MTU)
+	bridge, err := createBridge(bridgeName, bridgeIPv4Net, nil, link.Attrs().MTU)
 	if err != nil {
 		return fmt.Errorf("create bridge: %s", err)
 	}
@@ -307,18 +299,28 @@ func setupBridgeNetwork(linkName string, cidr string, netConfig *cloudhypervisor
 	linkMAC := link.Attrs().HardwareAddr
 	netConfig.Mac = linkMAC.String()
 
-	var linkAddr *net.IPNet
-	linkAddrs, err := netlink.AddrList(link, netlink.FAMILY_V4)
+	var linkIPv4Addr *netlink.Addr
+	var linkIPv6Addr *netlink.Addr
+	linkAddrs, err := netlink.AddrList(link, netlink.FAMILY_ALL)
 	if err != nil {
 		return fmt.Errorf("list link addrs: %s", err)
 	}
-	if len(linkAddrs) > 0 {
-		linkAddr = linkAddrs[0].IPNet
+	for idx, addr := range linkAddrs {
+		if netutils.IsIPv6(addr.IP) && !addr.IP.IsLinkLocalUnicast() {
+			linkIPv6Addr = &linkAddrs[idx]
+		}
+		if netutils.IsIPv4(addr.IP) {
+			linkIPv4Addr = &linkAddrs[idx]
+		}
 	}
 
-	linkRoutes, err := netlink.RouteList(link, netlink.FAMILY_V4)
+	linkIPv4Routes, err := netlink.RouteList(link, netlink.FAMILY_V4)
 	if err != nil {
-		return fmt.Errorf("list link routes: %s", err)
+		return fmt.Errorf("list link IPv4 routes: %s", err)
+	}
+	linkIPv6Routes, err := netlink.RouteList(link, netlink.FAMILY_V6)
+	if err != nil {
+		return fmt.Errorf("list link IPv6 routes: %s", err)
 	}
 
 	if err := netlink.LinkSetDown(link); err != nil {
@@ -330,9 +332,11 @@ func setupBridgeNetwork(linkName string, cidr string, netConfig *cloudhypervisor
 	}
 
 	newLinkName := link.Attrs().Name
-	if linkAddr != nil {
-		if err := netlink.AddrDel(link, &linkAddrs[0]); err != nil {
-			return fmt.Errorf("delete link address: %s", err)
+	if linkIPv4Addr != nil || linkIPv6Addr != nil {
+		if linkIPv4Addr != nil {
+			if err := netlink.AddrDel(link, linkIPv4Addr); err != nil {
+				return fmt.Errorf("delete link IPv4 address: %s", err)
+			}
 		}
 
 		originalLinkName := link.Attrs().Name
@@ -350,8 +354,15 @@ func setupBridgeNetwork(linkName string, cidr string, netConfig *cloudhypervisor
 		if err := netlink.LinkAdd(dummy); err != nil {
 			return fmt.Errorf("add dummy interface: %s", err)
 		}
-		if err := netlink.AddrReplace(dummy, &linkAddrs[0]); err != nil {
-			return fmt.Errorf("replace dummy interface address: %s", err)
+		if linkIPv4Addr != nil {
+			if err := netlink.AddrReplace(dummy, linkIPv4Addr); err != nil {
+				return fmt.Errorf("replace dummy interface IPv4 address: %s", err)
+			}
+		}
+		if linkIPv6Addr != nil {
+			if err := netlink.AddrReplace(dummy, linkIPv6Addr); err != nil {
+				return fmt.Errorf("replace dummy interface IPv6 address: %s", err)
+			}
 		}
 	}
 
@@ -373,66 +384,108 @@ func setupBridgeNetwork(linkName string, cidr string, netConfig *cloudhypervisor
 	}
 	netConfig.Tap = tapName
 
-	if linkAddr != nil {
-		var linkGateway net.IP
-		var routes []netlink.Route
-		for _, route := range linkRoutes {
+	if linkIPv4Addr != nil {
+		var ipv4Gateway net.IP
+		var ipv4Routes []netlink.Route
+		for _, route := range linkIPv4Routes {
 			if route.Dst == nil && len(route.Src) == 0 && len(route.Gw) == 0 {
 				continue
 			}
-			if len(linkGateway) == 0 && route.Dst == nil {
-				linkGateway = route.Gw
+			if len(ipv4Gateway) == 0 && route.Dst == nil {
+				ipv4Gateway = route.Gw
 			}
-			routes = append(routes, route)
+			ipv4Routes = append(ipv4Routes, route)
 		}
-		if err := startDHCPServer(bridgeName, linkMAC, linkAddr, linkGateway, routes); err != nil {
-			return fmt.Errorf("start DHCP server: %s", err)
+		if err := startDHCPv4Server(bridgeName, linkMAC, linkIPv4Addr.IPNet, ipv4Gateway, ipv4Routes); err != nil {
+			return fmt.Errorf("start DHCPv4 server: %s", err)
+		}
+	}
+	if linkIPv6Addr != nil {
+		if _, err := executeCommand("ip6tables", "-A", "INPUT", "-i", bridgeName, "-m", "mac", "!", "--mac-source", linkMAC.String(), "-p", "udp", "-m", "multiport", "--sports", "546", "-j", "DROP"); err != nil {
+			return fmt.Errorf("allow DHCPv6 request only from client: %s", err)
+		}
+		if err := startDHCPv6Server(bridgeName, linkMAC, linkIPv6Addr.IPNet); err != nil {
+			return fmt.Errorf("start DHCPv6 server: %s", err)
+		}
+
+		var route *netlink.Route
+		for idx, r := range linkIPv6Routes {
+			if r.Gw != nil {
+				route = &linkIPv6Routes[idx]
+				break
+			}
+		}
+
+		command := exec.Command("rad", "-interface", bridgeName, "-client-hardware-addr", linkMAC.String(), "-prefix", linkIPv6Addr.IPNet.String())
+		command.Stdout = os.Stdout
+		command.Stderr = os.Stderr
+		if route != nil {
+			command.Args = append(command.Args, "-router", route.Gw.String(), "-is-remote-route", "true")
+		}
+		if err := command.Start(); err != nil {
+			return fmt.Errorf("start RAD: %s", err)
 		}
 	}
 	return nil
 }
 
-func setupMasqueradeNetwork(linkName string, cidr string, netConfig *cloudhypervisor.NetConfig) error {
-	_, subnet, err := net.ParseCIDR(cidr)
-	if err != nil {
-		return fmt.Errorf("parse CIDR: %s", err)
-	}
-
-	bridgeIP, err := nextIP(subnet.IP, subnet)
-	if err != nil {
-		return fmt.Errorf("generate bridge IP: %s", err)
-	}
-	bridgeIPNet := net.IPNet{
-		IP:   bridgeIP,
-		Mask: subnet.Mask,
-	}
-
+func setupMasqueradeNetwork(linkName string, ipv4CIDR string, ipv6CIDR string, netConfig *cloudhypervisor.NetConfig) error {
 	link, err := netlink.LinkByName(linkName)
 	if err != nil {
 		return fmt.Errorf("get link: %s", err)
 	}
 	netConfig.Mtu = link.Attrs().MTU
 
+	var linkIPv4Addr *netlink.Addr
+	var linkIPv6Addr *netlink.Addr
+	linkAddrs, err := netlink.AddrList(link, netlink.FAMILY_ALL)
+	if err != nil {
+		return fmt.Errorf("list link addrs: %s", err)
+	}
+	for idx, addr := range linkAddrs {
+		if netutils.IsIPv6(addr.IP) && !addr.IP.IsLinkLocalUnicast() {
+			linkIPv6Addr = &linkAddrs[idx]
+		}
+		if netutils.IsIPv4(addr.IP) {
+			linkIPv4Addr = &linkAddrs[idx]
+		}
+	}
+
+	bridgeIPv4Net, err := generateBridgeIPNet(ipv4CIDR)
+	if err != nil {
+		return fmt.Errorf("generate bridge IPv4 Net: %s", err)
+	}
+	bridgeIPv6Net, err := generateBridgeIPNet(ipv6CIDR)
+	if err != nil {
+		return fmt.Errorf("generate bridge IPv6 Net: %s", err)
+	}
+
 	bridgeName := fmt.Sprintf("br-%s", linkName)
-	bridge, err := createBridge(bridgeName, &bridgeIPNet, link.Attrs().MTU)
+	bridge, err := createBridge(bridgeName, bridgeIPv4Net, bridgeIPv6Net, link.Attrs().MTU)
 	if err != nil {
 		return fmt.Errorf("create bridge: %s", err)
 	}
 
-	vmIP, err := nextIP(bridgeIP, subnet)
+	vmIPv4Net, err := generateNextIPNet(bridgeIPv4Net)
 	if err != nil {
-		return fmt.Errorf("generate vm IP: %s", err)
+		return fmt.Errorf("generate VM IPv4 net: %s", err)
 	}
-	vmIPNet := &net.IPNet{
-		IP:   vmIP,
-		Mask: subnet.Mask,
+	vmIPv6Net, err := generateNextIPNet(bridgeIPv6Net)
+	if err != nil {
+		return fmt.Errorf("generate VM IPv6 net: %s", err)
 	}
 
 	if _, err := executeCommand("iptables", "-t", "nat", "-A", "POSTROUTING", "-o", linkName, "-j", "MASQUERADE"); err != nil {
-		return fmt.Errorf("add masquerade rule: %s", err)
+		return fmt.Errorf("add IPv4 masquerade rule: %s", err)
 	}
-	if _, err := executeCommand("iptables", "-t", "nat", "-A", "PREROUTING", "-i", linkName, "-j", "DNAT", "--to-destination", vmIP.String()); err != nil {
-		return fmt.Errorf("add prerouting rule: %s", err)
+	if _, err := executeCommand("iptables", "-t", "nat", "-A", "PREROUTING", "-i", linkName, "-j", "DNAT", "--to-destination", vmIPv4Net.IP.String()); err != nil {
+		return fmt.Errorf("add IPv4 prerouting rule: %s", err)
+	}
+	if _, err := executeCommand("ip6tables", "-t", "nat", "-A", "POSTROUTING", "-o", linkName, "-j", "MASQUERADE"); err != nil {
+		return fmt.Errorf("add IPv6 masquerade rule: %s", err)
+	}
+	if _, err := executeCommand("ip6tables", "-t", "nat", "-A", "PREROUTING", "-i", linkName, "-j", "DNAT", "--to-destination", vmIPv6Net.IP.String()); err != nil {
+		return fmt.Errorf("add IPv6 prerouting rule: %s", err)
 	}
 
 	tapName := fmt.Sprintf("tap-%s", linkName)
@@ -445,16 +498,58 @@ func setupMasqueradeNetwork(linkName string, cidr string, netConfig *cloudhyperv
 	if err != nil {
 		return fmt.Errorf("parse VM MAC: %s", err)
 	}
-
-	if err := startDHCPServer(bridgeName, vmMAC, vmIPNet, bridgeIP, nil); err != nil {
-		return fmt.Errorf("start DHCP server: %s", err)
+	if linkIPv4Addr != nil {
+		if err := startDHCPv4Server(bridgeName, vmMAC, vmIPv4Net, bridgeIPv4Net.IP, nil); err != nil {
+			return fmt.Errorf("start DHCPv4 server: %s", err)
+		}
 	}
+	if linkIPv6Addr != nil {
+		if _, err := executeCommand("ip6tables", "-A", "INPUT", "-i", bridgeName, "-m", "mac", "!", "--mac-source", vmMAC.String(), "-p", "udp", "-m", "multiport", "--sports", "546", "-j", "DROP"); err != nil {
+			return fmt.Errorf("allow DHCPv6 request only from client: %s", err)
+		}
+		if err := startDHCPv6Server(bridgeName, vmMAC, vmIPv6Net); err != nil {
+			return fmt.Errorf("start DHCPv6 server: %s", err)
+		}
+
+		var bridgeIPv6LLA *netlink.Addr
+		bridgeAddrs, err := netlink.AddrList(bridge, netlink.FAMILY_V6)
+		if err != nil {
+			return fmt.Errorf("list bridge addrs: %s", err)
+		}
+		for idx, addr := range bridgeAddrs {
+			if addr.IP.IsLinkLocalUnicast() {
+				bridgeIPv6LLA = &bridgeAddrs[idx]
+				break
+			}
+		}
+
+		command := exec.Command("rad", "-interface", bridgeName, "-router", bridgeIPv6LLA.IP.String(), "-client-hardware-addr", vmMAC.String(), "-prefix", vmIPv6Net.String())
+		command.Stdout = os.Stdout
+		command.Stderr = os.Stderr
+		if err := command.Start(); err != nil {
+			return fmt.Errorf("start RAD: %s", err)
+		}
+	}
+
 	return nil
 }
 
-func nextIP(ip net.IP, subnet *net.IPNet) (net.IP, error) {
-	nextIP := make(net.IP, len(ip))
-	copy(nextIP, ip)
+func generateBridgeIPNet(cidr string) (*net.IPNet, error) {
+	_, subnet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return nil, fmt.Errorf("parse CIDR: %s", err)
+	}
+
+	ipNet, err := generateNextIPNet(subnet)
+	if err != nil {
+		return nil, fmt.Errorf("generate next IP net: %s", err)
+	}
+	return ipNet, nil
+}
+
+func generateNextIPNet(subnet *net.IPNet) (*net.IPNet, error) {
+	nextIP := make(net.IP, len(subnet.IP))
+	copy(nextIP, subnet.IP)
 	for j := len(nextIP) - 1; j >= 0; j-- {
 		nextIP[j]++
 		if nextIP[j] > 0 {
@@ -464,10 +559,14 @@ func nextIP(ip net.IP, subnet *net.IPNet) (net.IP, error) {
 	if subnet != nil && !subnet.Contains(nextIP) {
 		return nil, fmt.Errorf("no more available IP in subnet %q", subnet.String())
 	}
-	return nextIP, nil
+	ipNet := net.IPNet{
+		IP:   nextIP,
+		Mask: subnet.Mask,
+	}
+	return &ipNet, nil
 }
 
-func createBridge(bridgeName string, bridgeIPNet *net.IPNet, mtu int) (netlink.Link, error) {
+func createBridge(bridgeName string, bridgeIPv4Net *net.IPNet, bridgeIPv6Net *net.IPNet, mtu int) (netlink.Link, error) {
 	bridge := &netlink.Bridge{
 		LinkAttrs: netlink.LinkAttrs{
 			Name: bridgeName,
@@ -478,8 +577,16 @@ func createBridge(bridgeName string, bridgeIPNet *net.IPNet, mtu int) (netlink.L
 		return nil, err
 	}
 
-	if err := netlink.AddrAdd(bridge, &netlink.Addr{IPNet: bridgeIPNet}); err != nil {
-		return nil, fmt.Errorf("set bridge addr: %s", err)
+	if bridgeIPv4Net != nil {
+		if err := netlink.AddrAdd(bridge, &netlink.Addr{IPNet: bridgeIPv4Net}); err != nil {
+			return nil, fmt.Errorf("set bridge IPv4 addr: %s", err)
+		}
+	}
+
+	if bridgeIPv6Net != nil {
+		if err := netlink.AddrAdd(bridge, &netlink.Addr{IPNet: bridgeIPv6Net}); err != nil {
+			return nil, fmt.Errorf("set bridge IPv6 addr: %s", err)
+		}
 	}
 
 	if err := netlink.LinkSetUp(bridge); err != nil {
@@ -519,7 +626,7 @@ func createTap(bridge netlink.Link, tapName string, mtu int) (netlink.Link, erro
 //go:embed dnsmasq.conf
 var dnsmasqConf string
 
-func startDHCPServer(ifaceName string, mac net.HardwareAddr, ipNet *net.IPNet, gateway net.IP, routes []netlink.Route) error {
+func startDHCPv4Server(ifaceName string, mac net.HardwareAddr, ipNet *net.IPNet, gateway net.IP, routes []netlink.Route) error {
 	rc, err := resolvconf.Get()
 	if err != nil {
 		return fmt.Errorf("get resolvconf: %s", err)
@@ -591,6 +698,56 @@ func sortAndFormatRoutes(routes []netlink.Route) string {
 		items = append(items, route.Dst.String(), route.Gw.String())
 	}
 	return strings.Join(items, ",")
+}
+
+//go:embed dhcpv6.json.conf
+var dhcpv6Conf string
+
+func startDHCPv6Server(ifaceName string, mac net.HardwareAddr, ipNet *net.IPNet) error {
+	keaRunStateDir := fmt.Sprintf("/var/run/virtink/kea/%s/dhcpv6", ifaceName)
+	if err := os.MkdirAll(keaRunStateDir, 0755); err != nil {
+		return fmt.Errorf("create kea DHCPv6 run state dir: %s", err)
+	}
+
+	dhcpv6ConfPath := fmt.Sprintf("/var/run/virtink/kea/%s/dhcpv6/dhcpv6.json", ifaceName)
+	dhcpv6ConfFile, err := os.Create(dhcpv6ConfPath)
+	if err != nil {
+		return fmt.Errorf("create kea DHCPv6 config file: %s", err)
+	}
+	defer dhcpv6ConfFile.Close()
+
+	rc, err := resolvconf.Get()
+	if err != nil {
+		return fmt.Errorf("get resolvconf: %s", err)
+	}
+
+	_, prefix, err := net.ParseCIDR(ipNet.String())
+	if err != nil {
+		return fmt.Errorf("parse CIDR: %s", err)
+	}
+
+	data := map[string]string{
+		"iface":        ifaceName,
+		"ip":           ipNet.IP.String(),
+		"prefix":       prefix.String(),
+		"mac":          mac.String(),
+		"dnsServer":    strings.Join(resolvconf.GetNameservers(rc.Content, types.IPv6), ","),
+		"domainSearch": strings.Join(resolvconf.GetSearchDomains(rc.Content), ","),
+	}
+
+	if err := template.Must(template.New("dhcpv6.json.conf").Parse(dhcpv6Conf)).Execute(dhcpv6ConfFile, data); err != nil {
+		return fmt.Errorf("write kea DHCPv6 config file: %s", err)
+	}
+
+	command := exec.Command("kea-dhcp6", "-c", fmt.Sprintf("/var/run/virtink/kea/%s/dhcpv6/dhcpv6.json", ifaceName))
+	command.Env = os.Environ()
+	command.Env = append(command.Env,
+		fmt.Sprintf("KEA_PIDFILE_DIR=/var/run/virtink/kea/%s/dhcpv6", ifaceName),
+		fmt.Sprintf("KEA_LOCKFILE_DIR=/var/run/virtink/kea/%s/dhcpv6", ifaceName))
+	if err := command.Start(); err != nil {
+		return fmt.Errorf("start kea DHCPv6 server: %s", err)
+	}
+	return nil
 }
 
 func executeCommand(name string, arg ...string) (string, error) {

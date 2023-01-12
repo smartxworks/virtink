@@ -109,7 +109,10 @@ type InterfaceBridge struct {
 }
 
 type InterfaceMasquerade struct {
-	CIDR string `json:"cidr,omitempty"`
+	// CIDR for IPv4 network. Default to 10.0.2.0/30 if not specified
+	IPv4CIDR string `json:"ipv4CIDR,omitempty"`
+	// CIDR for IPv6 network. Default to fd10:0:2::/120 if not specified
+	IPv6CIDR string `json:"ipv6CIDR,omitempty"`
 }
 
 type InterfaceSRIOV struct {

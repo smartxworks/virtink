@@ -343,21 +343,23 @@ func TestValidateVM(t *testing.T) {
 			vm := validVM.DeepCopy()
 			vm.Spec.Instance.Interfaces[0].InterfaceBindingMethod.Bridge = nil
 			vm.Spec.Instance.Interfaces[0].InterfaceBindingMethod.Masquerade = &virtv1alpha1.InterfaceMasquerade{
-				CIDR: "",
+				IPv4CIDR: "",
+				IPv6CIDR: "",
 			}
 			return vm
 		}(),
-		invalidFields: []string{"spec.instance.interfaces[0].masquerade.cidr"},
+		invalidFields: []string{"spec.instance.interfaces[0].masquerade.ipv4CIDR", "spec.instance.interfaces[0].masquerade.ipv6CIDR"},
 	}, {
 		vm: func() *virtv1alpha1.VirtualMachine {
 			vm := validVM.DeepCopy()
 			vm.Spec.Instance.Interfaces[0].InterfaceBindingMethod.Bridge = nil
 			vm.Spec.Instance.Interfaces[0].InterfaceBindingMethod.Masquerade = &virtv1alpha1.InterfaceMasquerade{
-				CIDR: "10.0.2.0/31",
+				IPv4CIDR: "10.0.2.0/31",
+				IPv6CIDR: "fd10:0:2::/127",
 			}
 			return vm
 		}(),
-		invalidFields: []string{"spec.instance.interfaces[0].masquerade.cidr"},
+		invalidFields: []string{"spec.instance.interfaces[0].masquerade.ipv4CIDR", "spec.instance.interfaces[0].masquerade.ipv6CIDR"},
 	}, {
 		vm: func() *virtv1alpha1.VirtualMachine {
 			vm := validVM.DeepCopy()
@@ -595,7 +597,8 @@ func TestMutateVM(t *testing.T) {
 			return vm
 		}(),
 		assert: func(vm *virtv1alpha1.VirtualMachine) {
-			assert.Equal(t, vm.Spec.Instance.Interfaces[0].Masquerade.CIDR, "10.0.2.0/30")
+			assert.Equal(t, vm.Spec.Instance.Interfaces[0].Masquerade.IPv4CIDR, "10.0.2.0/30")
+			assert.Equal(t, vm.Spec.Instance.Interfaces[0].Masquerade.IPv6CIDR, "fd10:0:2::/120")
 		},
 	}}
 	for _, tc := range tests {

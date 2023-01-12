@@ -9,6 +9,7 @@ require (
 	github.com/hoisie/mustache v0.0.0-20160804235033-6375acf62c69
 	github.com/iancoleman/strcase v0.2.0
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.3.0
+	github.com/mdlayher/ndp v1.0.0
 	github.com/moby/sys/mountinfo v0.6.2
 	github.com/namsral/flag v1.7.4-pre
 	github.com/nasa9084/go-openapi v0.0.0-20210722142352-4a81d737faf6
@@ -19,6 +20,8 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/subgraph/libmacouflage v0.0.1
 	github.com/vishvananda/netlink v1.1.0
+	golang.org/x/net v0.0.0-20220923203811-8be639271d50
+	golang.org/x/sys v0.0.0-20220919091848-fb04ddd9f9c8
 	google.golang.org/grpc v1.47.0
 	gopkg.in/fsnotify.v1 v1.4.7
 	inet.af/tcpproxy v0.0.0-20220326234310-be3ee21c9fa0
@@ -27,6 +30,7 @@ require (
 	k8s.io/apiserver v0.24.1
 	k8s.io/client-go v0.24.1
 	k8s.io/kubelet v0.24.1
+	k8s.io/utils v0.0.0-20220210201930-3a6ce19ff2f9
 	kubevirt.io/containerized-data-importer-api v1.50.0
 	sigs.k8s.io/controller-runtime v0.12.1
 	sigs.k8s.io/controller-tools v0.9.0
@@ -57,7 +61,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/gnostic v0.5.7-v3refs // indirect
-	github.com/google/go-cmp v0.5.6 // indirect
+	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
@@ -89,9 +93,7 @@ require (
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.19.1 // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220106191415-9b9b3d81d5e3 // indirect
-	golang.org/x/net v0.0.0-20220225172249-27dd8689420f // indirect
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8 // indirect
-	golang.org/x/sys v0.0.0-20220908164124-27713097b956 // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8 // indirect
@@ -109,7 +111,6 @@ require (
 	k8s.io/component-base v0.24.1 // indirect
 	k8s.io/klog/v2 v2.60.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20220328201542-3ee0da9b0b42 // indirect
-	k8s.io/utils v0.0.0-20220210201930-3a6ce19ff2f9 // indirect
 	kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6ed90 // indirect
 	sigs.k8s.io/json v0.0.0-20211208200746-9f7c6b3444d2 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.1 // indirect
