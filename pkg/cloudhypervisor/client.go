@@ -750,8 +750,8 @@ type ConsoleConfig struct {
 }
 
 type CpuAffinity struct {
-	HostCpus []int `json:"host_cpus,omitempty"`
-	Vcpu     int   `json:"vcpu,omitempty"`
+	HostCpus []int `json:"host_cpus"`
+	Vcpu     int   `json:"vcpu"`
 }
 
 type CpuFeatures struct {
