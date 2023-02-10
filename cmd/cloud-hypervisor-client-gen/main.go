@@ -18,7 +18,8 @@ import (
 var clientTemplate string
 
 func main() {
-	resp, err := http.Get("https://raw.githubusercontent.com/cloud-hypervisor/cloud-hypervisor/v28.0/vmm/src/api/openapi/cloud-hypervisor.yaml")
+	// TODO: Use stable release includes patch https://github.com/cloud-hypervisor/cloud-hypervisor/commit/3dd01443d51b7d669ca770ae78fd2a01e9d103b7
+	resp, err := http.Get("https://raw.githubusercontent.com/cloud-hypervisor/cloud-hypervisor/3dd01443d51b7d669ca770ae78fd2a01e9d103b7/vmm/src/api/openapi/cloud-hypervisor.yaml")
 	if err != nil {
 		panic(err)
 	}
