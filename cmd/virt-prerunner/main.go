@@ -17,6 +17,7 @@ import (
 
 	"github.com/docker/libnetwork/resolvconf"
 	"github.com/docker/libnetwork/types"
+	userspacecni "github.com/intel/userspace-cni-network-plugin/pkg/types"
 	netv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	"github.com/namsral/flag"
 	"github.com/subgraph/libmacouflage"
@@ -252,21 +253,14 @@ func buildVMConfig(ctx context.Context, vm *virtv1alpha1.VirtualMachine) (*cloud
 					}
 				}
 			case iface.VhostUser != nil:
-				socket := os.Getenv("VHOST_USER_SOCKET")
-				if socket == "" {
-					return nil, fmt.Errorf("vhost-user socket path not found")
-				}
-				link, err := netlink.LinkByName("eth0")
-				if err != nil {
-					return nil, fmt.Errorf("get link: %s", err)
-				}
 				netConfig := cloudhypervisor.NetConfig{
-					Id:          iface.Name,
-					Mac:         iface.MAC,
-					Mtu:         link.Attrs().MTU,
-					VhostUser:   true,
-					VhostMode:   "server",
-					VhostSocket: socket,
+					Id:        iface.Name,
+					Mac:       iface.MAC,
+					VhostUser: true,
+					VhostMode: "Server",
+				}
+				if err := setupVhostUserNetwork(linkName, &netConfig); err != nil {
+					return nil, fmt.Errorf("setup vhost-user network: %s", err)
 				}
 				vmConfig.Net = append(vmConfig.Net, &netConfig)
 				vmConfig.Memory.Shared = true
@@ -591,6 +585,63 @@ func sortAndFormatRoutes(routes []netlink.Route) string {
 		items = append(items, route.Dst.String(), route.Gw.String())
 	}
 	return strings.Join(items, ",")
+}
+
+func setupVhostUserNetwork(linkName string, netConfig *cloudhypervisor.NetConfig) error {
+	netType := os.Getenv("NET_TYPE")
+	if netType == "" {
+		return fmt.Errorf("network type not found")
+	}
+
+	var socketPath string
+	mtu := 1500
+	switch netType {
+	case "kube-ovn":
+		socketPath := os.Getenv("VHOST_USER_SOCKET")
+		if socketPath == "" {
+			return fmt.Errorf("vhost-user socket path not found")
+		}
+		link, err := netlink.LinkByName("eth0")
+		if err != nil {
+			return fmt.Errorf("get link: %s", err)
+		}
+		mtu = link.Attrs().MTU
+	case "userspace":
+		userspaceConfigData := os.Getenv("USERSPACE_CONFIGURATION_DATA")
+		if userspaceConfigData == "" {
+			return fmt.Errorf("userspace configuration data not found")
+		}
+		var configData []userspacecni.ConfigurationData
+		if err := json.Unmarshal([]byte(userspaceConfigData), &configData); err != nil {
+			return fmt.Errorf("unmarshal userspace configuration data: %s", err)
+		}
+		var containerID string
+		var socketFile string
+		for _, config := range configData {
+			if config.IfName == linkName {
+				containerID = config.ContainerId
+				socketFile = config.Config.VhostConf.Socketfile
+				break
+			}
+		}
+		if containerID == "" || socketFile == "" {
+			return fmt.Errorf("vhost-user link not found")
+		}
+		socketDir := fmt.Sprintf("/var/run/vhost-user/%s", containerID[0:12])
+		if _, err := os.Stat(socketDir); err != nil {
+			if os.IsNotExist(err) {
+				socketPath = fmt.Sprintf("/var/run/vhost-user/%s", socketFile)
+			} else {
+				return err
+			}
+		} else {
+			socketPath = fmt.Sprintf("%s/%s", socketDir, socketFile)
+		}
+	}
+
+	netConfig.Mtu = mtu
+	netConfig.VhostSocket = socketPath
+	return nil
 }
 
 func executeCommand(name string, arg ...string) (string, error) {

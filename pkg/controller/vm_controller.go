@@ -628,6 +628,7 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 	}
 
 	var networks []netv1.NetworkSelectionElement
+	numOfUserspaceIface := 0
 	for i, network := range vm.Spec.Networks {
 		var iface *virtv1alpha1.Interface
 		for j := range vm.Spec.Instance.Interfaces {
@@ -714,10 +715,48 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 					}
 					vmPod.Spec.Containers[0].VolumeMounts = append(vmPod.Spec.Containers[0].VolumeMounts, volumeMount)
 
-					vmPod.Spec.Containers[0].Env = append(vmPod.Spec.Containers[0].Env, corev1.EnvVar{
-						Name:  "VHOST_USER_SOCKET",
-						Value: fmt.Sprintf("/var/run/vhost-user/%s", cfg.VhostUserSocketName),
-					})
+					vmPod.Spec.Containers[0].Env = append(vmPod.Spec.Containers[0].Env,
+						corev1.EnvVar{
+							Name:  "VHOST_USER_SOCKET",
+							Value: fmt.Sprintf("/var/run/vhost-user/%s", cfg.VhostUserSocketName),
+						},
+						corev1.EnvVar{
+							Name:  "NET_TYPE",
+							Value: "kube-ovn",
+						},
+					)
+				case "userspace":
+					numOfUserspaceIface++
+					if numOfUserspaceIface == 1 {
+						vmPod.Spec.Volumes = append(vmPod.Spec.Volumes, corev1.Volume{
+							Name: "vhost-user-sockets",
+							VolumeSource: corev1.VolumeSource{
+								HostPath: &corev1.HostPathVolumeSource{
+									Path: "/usr/local/var/run/openvswitch/",
+								},
+							},
+						})
+						volumeMount := corev1.VolumeMount{
+							Name:      "vhost-user-sockets",
+							MountPath: "/var/run/vhost-user",
+						}
+						vmPod.Spec.Containers[0].VolumeMounts = append(vmPod.Spec.Containers[0].VolumeMounts, volumeMount)
+
+						vmPod.Spec.Containers[0].Env = append(vmPod.Spec.Containers[0].Env,
+							corev1.EnvVar{
+								Name: "USERSPACE_CONFIGURATION_DATA",
+								ValueFrom: &corev1.EnvVarSource{
+									FieldRef: &corev1.ObjectFieldSelector{
+										FieldPath: "metadata.annotations['userspace/configuration-data']",
+									},
+								},
+							},
+							corev1.EnvVar{
+								Name:  "NET_TYPE",
+								Value: "userspace",
+							},
+						)
+					}
 				default:
 					return nil, fmt.Errorf("CNI plugin %s is not supported for vhost-uesr", cfg.Type)
 				}
