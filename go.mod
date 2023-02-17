@@ -8,6 +8,7 @@ require (
 	github.com/google/uuid v1.1.2
 	github.com/hoisie/mustache v0.0.0-20160804235033-6375acf62c69
 	github.com/iancoleman/strcase v0.2.0
+	github.com/intel/userspace-cni-network-plugin v0.0.0-20201014132026-387fb2be6a32
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.3.0
 	github.com/moby/sys/mountinfo v0.6.2
 	github.com/namsral/flag v1.7.4-pre
@@ -19,6 +20,7 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/subgraph/libmacouflage v0.0.1
 	github.com/vishvananda/netlink v1.1.0
+	golang.org/x/sys v0.0.0-20220908164124-27713097b956
 	google.golang.org/grpc v1.47.0
 	gopkg.in/fsnotify.v1 v1.4.7
 	inet.af/tcpproxy v0.0.0-20220326234310-be3ee21c9fa0
@@ -38,6 +40,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/cilium/ebpf v0.7.0 // indirect
+	github.com/containernetworking/cni v1.0.1 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -91,7 +94,6 @@ require (
 	golang.org/x/mod v0.6.0-dev.0.20220106191415-9b9b3d81d5e3 // indirect
 	golang.org/x/net v0.0.0-20220225172249-27dd8689420f // indirect
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8 // indirect
-	golang.org/x/sys v0.0.0-20220908164124-27713097b956 // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8 // indirect
@@ -117,6 +119,7 @@ require (
 )
 
 replace (
+	github.com/containernetworking/cni => github.com/containernetworking/cni v0.8.0
 	github.com/docker/libnetwork => github.com/docker/libnetwork v0.8.0-dev.2.0.20220525220214-2dab5620d446
 	k8s.io/api => k8s.io/api v0.24.1
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.24.1
