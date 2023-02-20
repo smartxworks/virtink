@@ -11,10 +11,11 @@ RUN go mod download
 COPY cmd/ cmd/
 COPY pkg/ pkg/
 RUN --mount=type=cache,target=/root/.cache/go-build go build -a cmd/virt-prerunner/main.go
+RUN --mount=type=cache,target=/root/.cache/go-build go build -o rad -a cmd/route-advertisement-daemon/main.go
 
-FROM alpine
+FROM alpine:3.17
 
-RUN apk add --no-cache curl screen dnsmasq cdrkit iptables iproute2 qemu-virtiofsd dpkg util-linux s6-overlay nmap-ncat
+RUN apk add --no-cache curl screen dnsmasq kea-dhcp6 cdrkit iptables ip6tables iproute2 qemu-virtiofsd dpkg util-linux s6-overlay nmap-ncat
 
 RUN set -eux; \
     mkdir /var/lib/cloud-hypervisor; \
@@ -40,6 +41,7 @@ COPY build/virt-prerunner/cloud-hypervisor-finish.sh /etc/s6-overlay/s6-rc.d/clo
 RUN touch /etc/s6-overlay/s6-rc.d/user/contents.d/cloud-hypervisor
 
 COPY --from=builder /workspace/main /usr/bin/virt-prerunner
+COPY --from=builder /workspace/rad /usr/bin/rad
 COPY build/virt-prerunner/virt-prerunner-type /etc/s6-overlay/s6-rc.d/virt-prerunner/type
 COPY build/virt-prerunner/virt-prerunner-up /etc/s6-overlay/s6-rc.d/virt-prerunner/up
 COPY build/virt-prerunner/virt-prerunner-run.sh /etc/s6-overlay/scripts/virt-prerunner-run.sh
@@ -50,5 +52,7 @@ ENTRYPOINT ["/init"]
 
 COPY build/virt-prerunner/iptables-wrapper /sbin/iptables-wrapper
 RUN update-alternatives --install /sbin/iptables iptables /sbin/iptables-wrapper 100
+COPY build/virt-prerunner/ip6tables-wrapper /sbin/ip6tables-wrapper
+RUN update-alternatives --install /sbin/ip6tables ip6tables /sbin/ip6tables-wrapper 100
 
 ADD build/virt-prerunner/virt-init-volume.sh /usr/bin/virt-init-volume

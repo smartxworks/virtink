@@ -172,8 +172,11 @@ func MutateVM(ctx context.Context, vm *virtv1alpha1.VirtualMachine, oldVM *virtv
 		}
 
 		if vm.Spec.Instance.Interfaces[i].Masquerade != nil {
-			if vm.Spec.Instance.Interfaces[i].Masquerade.CIDR == "" {
-				vm.Spec.Instance.Interfaces[i].Masquerade.CIDR = "10.0.2.0/30"
+			if vm.Spec.Instance.Interfaces[i].Masquerade.IPv4CIDR == "" {
+				vm.Spec.Instance.Interfaces[i].Masquerade.IPv4CIDR = "10.0.2.0/30"
+			}
+			if vm.Spec.Instance.Interfaces[i].Masquerade.IPv6CIDR == "" {
+				vm.Spec.Instance.Interfaces[i].Masquerade.IPv6CIDR = "fd10:0:2::/120"
 			}
 		}
 	}
@@ -495,7 +498,8 @@ func ValidateInterfaceBindingMethod(ctx context.Context, bindingMethod *virtv1al
 		if cnt > 1 {
 			errs = append(errs, field.Forbidden(fieldPath.Child("masquerade"), "may not specify more than 1 binding method"))
 		} else {
-			errs = append(errs, ValidateCIDR(bindingMethod.Masquerade.CIDR, 4, fieldPath.Child("masquerade").Child("cidr"))...)
+			errs = append(errs, ValidateCIDR(bindingMethod.Masquerade.IPv4CIDR, 4, fieldPath.Child("masquerade").Child("ipv4CIDR"))...)
+			errs = append(errs, ValidateCIDR(bindingMethod.Masquerade.IPv6CIDR, 4, fieldPath.Child("masquerade").Child("ipv6CIDR"))...)
 		}
 	}
 	if bindingMethod.SRIOV != nil {

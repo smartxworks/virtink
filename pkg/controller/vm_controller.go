@@ -640,17 +640,6 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 			return nil, fmt.Errorf("interface not found for network: %s", network.Name)
 		}
 
-		if iface.Masquerade != nil {
-			vmPod.Spec.InitContainers = append(vmPod.Spec.InitContainers, corev1.Container{
-				Name:  "enable-ip-forward",
-				Image: r.PrerunnerImageName,
-				SecurityContext: &corev1.SecurityContext{
-					Privileged: &[]bool{true}[0],
-				},
-				Command: []string{"sysctl", "-w", "net.ipv4.ip_forward=1"},
-			})
-		}
-
 		switch {
 		case network.Multus != nil:
 			networks = append(networks, netv1.NetworkSelectionElement{
@@ -724,6 +713,18 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 		default:
 			// ignored
 		}
+	}
+
+	if len(vm.Spec.Instance.Interfaces) > 0 {
+		vmPod.Spec.InitContainers = append(vmPod.Spec.InitContainers, corev1.Container{
+			Name:      "configure-sysctl-for-ip",
+			Image:     r.PrerunnerImageName,
+			Resources: vm.Spec.Resources,
+			SecurityContext: &corev1.SecurityContext{
+				Privileged: &[]bool{true}[0],
+			},
+			Command: []string{"sysctl", "-w", "net.ipv4.ip_forward=1", "net.ipv6.conf.all.forwarding=1", "net.ipv6.conf.default.accept_dad=0"},
+		})
 	}
 
 	if len(networks) > 0 {

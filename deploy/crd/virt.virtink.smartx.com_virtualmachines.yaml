@@ -903,7 +903,13 @@ spec:
                           type: string
                         masquerade:
                           properties:
-                            cidr:
+                            ipv4CIDR:
+                              description: CIDR for IPv4 network. Default to 10.0.2.0/30
+                                if not specified
+                              type: string
+                            ipv6CIDR:
+                              description: CIDR for IPv6 network. Default to fd10:0:2::/120
+                                if not specified
                               type: string
                           type: object
                         name:

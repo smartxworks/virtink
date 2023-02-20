@@ -1,0 +1,17 @@
+#!/bin/sh
+
+set +e
+
+ip6tables-legacy -nvL
+
+if [ $? -eq 0 ]
+then
+  mode=legacy
+else
+  mode=nft
+fi
+
+update-alternatives --install /sbin/ip6tables ip6tables "/sbin/ip6tables-${mode}" 100
+update-alternatives --set ip6tables "/sbin/ip6tables-${mode}" > /dev/null
+
+exec "$0" "$@"
