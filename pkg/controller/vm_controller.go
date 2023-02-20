@@ -642,8 +642,9 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 
 		if iface.Masquerade != nil {
 			vmPod.Spec.InitContainers = append(vmPod.Spec.InitContainers, corev1.Container{
-				Name:  "enable-ip-forward",
-				Image: r.PrerunnerImageName,
+				Name:      "enable-ip-forward",
+				Image:     r.PrerunnerImageName,
+				Resources: vm.Spec.Resources,
 				SecurityContext: &corev1.SecurityContext{
 					Privileged: &[]bool{true}[0],
 				},
