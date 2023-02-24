@@ -83,6 +83,7 @@ Each interface should declare its type by defining one of the following fields:
 | `bridge`     | Connect using a linux bridge                    |
 | `masquerade` | Connect using iptables rules to NAT the traffic |
 | `sriov`      | Passthrough a SR-IOV PCI device via VFIO        |
+| `vhost-user` | Connect using DPDK in userspace                 |
 
 Each interface may also have additional configuration fields that modify properties "seen" inside guest instances, as listed below:
 
@@ -224,3 +225,7 @@ spec:
       multus:
         networkName: mellanox-sriov-25g
 ```
+
+### `vhost-user` mode
+
+In `vhost-user` mode, VMs are connected to the network by DPDK, this fast packet processing library is implemented entirely in userspace, bypassing the kernel's networking stack. You can refer to document [vhost-user-net](vhost-user-net.md) to setup the vhost-user network and learn its performance details.
