@@ -30,6 +30,8 @@ rules:
   resources:
   - persistentvolumeclaims
   verbs:
+  - create
+  - delete
   - get
   - list
   - watch
@@ -43,6 +45,17 @@ rules:
   - get
   - list
   - patch
+  - update
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - daemonsets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
   - update
   - watch
 - apiGroups:
@@ -73,6 +86,32 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+  - virt.virtink.smartx.com
+  resources:
+  - locks
+  verbs:
+  - delete
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - virt.virtink.smartx.com
+  resources:
+  - lockspaces
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - virt.virtink.smartx.com
+  resources:
+  - lockspaces/status
+  verbs:
+  - get
+  - update
 - apiGroups:
   - virt.virtink.smartx.com
   resources:

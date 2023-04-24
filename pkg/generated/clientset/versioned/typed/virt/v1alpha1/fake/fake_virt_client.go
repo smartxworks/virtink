@@ -12,6 +12,14 @@ type FakeVirtV1alpha1 struct {
 	*testing.Fake
 }
 
+func (c *FakeVirtV1alpha1) Locks(namespace string) v1alpha1.LockInterface {
+	return &FakeLocks{c, namespace}
+}
+
+func (c *FakeVirtV1alpha1) Lockspaces() v1alpha1.LockspaceInterface {
+	return &FakeLockspaces{c}
+}
+
 func (c *FakeVirtV1alpha1) VirtualMachines(namespace string) v1alpha1.VirtualMachineInterface {
 	return &FakeVirtualMachines{c, namespace}
 }

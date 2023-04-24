@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -472,6 +473,23 @@ func TestValidateVM(t *testing.T) {
 			return vm
 		}(),
 		invalidFields: []string{"spec.networks[0].multus"},
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			vm := validVM.DeepCopy()
+			vm.Spec.EnableHA = true
+			vm.Spec.RunPolicy = virtv1alpha1.RunPolicyOnce
+			return vm
+		}(),
+		invalidFields: []string{"spec.enableHA"},
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			vm := validVM.DeepCopy()
+			for i := 0; i < 9; i++ {
+				vm.Spec.Locks = append(vm.Spec.Locks, strconv.Itoa(i))
+			}
+			return vm
+		}(),
+		invalidFields: []string{"spec.locks"},
 	}}
 
 	for _, tc := range tests {

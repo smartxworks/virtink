@@ -316,6 +316,16 @@ func ValidateVMSpec(ctx context.Context, spec *virtv1alpha1.VirtualMachineSpec, 
 		errs = append(errs, ValidateNetwork(ctx, &network, fieldPath)...)
 	}
 
+	if spec.EnableHA {
+		if spec.RunPolicy != virtv1alpha1.RunPolicyAlways && spec.RunPolicy != virtv1alpha1.RunPolicyRerunOnFailure {
+			errs = append(errs, field.Forbidden(fieldPath.Child("enableHA"), "only \"RerunOnFailure\" and \"Always\" run policy are allowed for VM HA"))
+		}
+	}
+
+	if len(spec.Locks) > 8 {
+		errs = append(errs, field.Forbidden(fieldPath.Child("locks"), "may not use more than 8 Locks for VM"))
+	}
+
 	return errs
 }
 

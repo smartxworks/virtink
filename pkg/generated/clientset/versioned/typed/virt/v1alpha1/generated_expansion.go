@@ -2,6 +2,10 @@
 
 package v1alpha1
 
+type LockExpansion interface{}
+
+type LockspaceExpansion interface{}
+
 type VirtualMachineExpansion interface{}
 
 type VirtualMachineMigrationExpansion interface{}

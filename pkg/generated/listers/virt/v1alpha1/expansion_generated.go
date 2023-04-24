@@ -2,6 +2,18 @@
 
 package v1alpha1
 
+// LockListerExpansion allows custom methods to be added to
+// LockLister.
+type LockListerExpansion interface{}
+
+// LockNamespaceListerExpansion allows custom methods to be added to
+// LockNamespaceLister.
+type LockNamespaceListerExpansion interface{}
+
+// LockspaceListerExpansion allows custom methods to be added to
+// LockspaceLister.
+type LockspaceListerExpansion interface{}
+
 // VirtualMachineListerExpansion allows custom methods to be added to
 // VirtualMachineLister.
 type VirtualMachineListerExpansion interface{}

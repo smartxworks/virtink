@@ -35,6 +35,10 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&VirtualMachineList{},
 		&VirtualMachineMigration{},
 		&VirtualMachineMigrationList{},
+		&Lockspace{},
+		&LockspaceList{},
+		&Lock{},
+		&LockList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil

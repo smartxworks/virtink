@@ -12,5 +12,7 @@ bash $GOPATH/src/k8s.io/code-generator/generate-groups.sh "deepcopy,client,infor
 controller-gen paths=./pkg/apis/... crd output:crd:artifacts:config=deploy/crd
 controller-gen paths=./cmd/virt-controller/... paths=./pkg/controller/... rbac:roleName=virt-controller output:rbac:artifacts:config=deploy/virt-controller webhook output:webhook:artifacts:config=deploy/virt-controller
 controller-gen paths=./cmd/virt-daemon/... paths=./pkg/daemon/... rbac:roleName=virt-daemon output:rbac:artifacts:config=deploy/virt-daemon
+controller-gen paths=./cmd/lockspace-attacher/... rbac:roleName=lockspace-attacher output:rbac:artifacts:config=deploy/lockspace-attacher
+controller-gen paths=./cmd/lockspace-detector/... rbac:roleName=lockspace-detector output:rbac:artifacts:config=deploy/lockspace-detector
 
 go generate ./...

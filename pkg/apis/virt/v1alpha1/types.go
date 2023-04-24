@@ -1,6 +1,8 @@
 package v1alpha1
 
 import (
+	"fmt"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,10 +35,12 @@ type VirtualMachineSpec struct {
 	ReadinessProbe *corev1.Probe               `json:"readinessProbe,omitempty"`
 
 	RunPolicy RunPolicy `json:"runPolicy,omitempty"`
+	EnableHA  bool      `json:"enableHA,omitempty"`
 
 	Instance Instance  `json:"instance"`
 	Volumes  []Volume  `json:"volumes,omitempty"`
 	Networks []Network `json:"networks,omitempty"`
+	Locks    []string  `json:"locks,omitempty"`
 }
 
 // +kubebuilder:validation:Enum=Always;RerunOnFailure;Once;Manual;Halted
@@ -332,4 +336,96 @@ type VirtualMachineMigrationList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 
 	Items []VirtualMachineMigration `json:"items"`
+}
+
+// +genclient
+// +genclient:nonNamespaced
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:resource:scope="Cluster"
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="StorageClass",type=string,JSONPath=`.spec.storageClassName`
+// +kubebuilder:printcolumn:name="Ready",type=boolean,JSONPath=`.status.ready`
+
+type Lockspace struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   LockspaceSpec   `json:"spec,omitempty"`
+	Status LockspaceStatus `json:"status,omitempty"`
+}
+
+func (ls *Lockspace) GeneratePVCName() string {
+	return fmt.Sprintf("lockspace-pvc-%s", ls.Name)
+}
+
+func (ls *Lockspace) GenerateInitializerName() string {
+	return fmt.Sprintf("lockspace-initializer-%s", ls.Name)
+}
+
+func (ls *Lockspace) GenerateDetectorName() string {
+	return fmt.Sprintf("lockspace-detector-%s", ls.Name)
+}
+
+func (ls *Lockspace) GenerateAttacherName() string {
+	return fmt.Sprintf("lockspace-attacher-%s", ls.Name)
+}
+
+type LockspaceSpec struct {
+	StorageClassName string `json:"storageClassName"`
+	// +kubebuilder:default=Filesystem
+	VolumeMode *corev1.PersistentVolumeMode `json:"volumeMode,omitempty"`
+	// The maximum number of Lock that can be held in a Lockspace.
+	// +kubebuilder:default=1000
+	// +kubebuilder:validation:Maximum=16384
+	// +kubebuilder:validation:Minimum=1
+	MaxLocks int `json:"maxLocks,omitempty"`
+	// +kubebuilder:default=10
+	// +kubebuilder:validation:Maximum=15
+	// +kubebuilder:validation:Minimum=5
+	IOTimeoutSeconds uint32 `json:"ioTimeoutSeconds,omitempty"`
+}
+
+type LockspaceStatus struct {
+	Ready bool `json:"ready,omitempty"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+type LockspaceList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+
+	Items []Lockspace `json:"items"`
+}
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Lockspace",type=string,JSONPath=`.spec.lockspaceName`
+// +kubebuilder:printcolumn:name="Ready",type=boolean,JSONPath=`.status.ready`
+
+type Lock struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   LockSpec   `json:"spec,omitempty"`
+	Status LockStatus `json:"status,omitempty"`
+}
+
+type LockSpec struct {
+	LockspaceName string `json:"lockspaceName"`
+}
+
+type LockStatus struct {
+	Ready  bool   `json:"ready,omitempty"`
+	Offset uint64 `json:"offset,omitempty"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+type LockList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+
+	Items []Lock `json:"items"`
 }
