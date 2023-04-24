@@ -15,7 +15,7 @@ require (
 	github.com/nasa9084/go-openapi v0.0.0-20210722142352-4a81d737faf6
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.19.0
-	github.com/opencontainers/runc v1.1.3
+	github.com/opencontainers/runc v1.1.5
 	github.com/r3labs/diff/v2 v2.15.1
 	github.com/stretchr/testify v1.7.0
 	github.com/subgraph/libmacouflage v0.0.1
