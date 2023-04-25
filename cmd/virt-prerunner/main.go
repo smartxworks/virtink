@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"text/template"
 
 	"github.com/docker/libnetwork/resolvconf"
@@ -26,6 +27,7 @@ import (
 	virtv1alpha1 "github.com/smartxworks/virtink/pkg/apis/virt/v1alpha1"
 	"github.com/smartxworks/virtink/pkg/cloudhypervisor"
 	"github.com/smartxworks/virtink/pkg/cpuset"
+	"github.com/smartxworks/virtink/pkg/sanlock"
 )
 
 func main() {
@@ -45,26 +47,35 @@ func main() {
 		log.Fatalf("Failed to unmarshal VM: %s", err)
 	}
 
+	if len(vm.Spec.Locks) > 0 {
+		resources := os.Getenv("LOCKSPACE_RESOURCE")
+		if err := sanlock.AcquireResourceLease(strings.Split(resources, " "), vm.Name); err != nil {
+			log.Fatalf("Failed to acquire lock: %s", err)
+		}
+	}
+
 	vmConfig, err := buildVMConfig(context.Background(), &vm)
 	if err != nil {
 		log.Fatalf("Failed to build VM config: %s", err)
 	}
 
-	if receiveMigration {
-		return
+	if !receiveMigration {
+		vmConfigFile, err := os.Create("/var/run/virtink/vm-config.json")
+		if err != nil {
+			log.Fatalf("Failed to create VM config file: %s", err)
+		}
+
+		if err := json.NewEncoder(vmConfigFile).Encode(vmConfig); err != nil {
+			log.Fatalf("Failed to write VM config to file: %s", err)
+		}
+		vmConfigFile.Close()
+
+		log.Println("Succeeded to setup")
 	}
 
-	vmConfigFile, err := os.Create("/var/run/virtink/vm-config.json")
-	if err != nil {
-		log.Fatalf("Failed to create VM config file: %s", err)
+	if err := syscall.Exec("/usr/bin/cloud-hypervisor", []string{"cloud-hypervisor", "--api-socket", "/var/run/virtink/ch.sock"}, nil); err != nil {
+		log.Fatalf("failed to start cloud-hypervisor: %s", err)
 	}
-
-	if err := json.NewEncoder(vmConfigFile).Encode(vmConfig); err != nil {
-		log.Fatalf("Failed to write VM config to file: %s", err)
-	}
-	vmConfigFile.Close()
-
-	log.Println("Succeeded to setup")
 }
 
 func buildVMConfig(ctx context.Context, vm *virtv1alpha1.VirtualMachine) (*cloudhypervisor.VmConfig, error) {

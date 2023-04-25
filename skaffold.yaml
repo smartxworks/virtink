@@ -12,12 +12,27 @@ build:
       requires:
         - image: virt-prerunner
           alias: PRERUNNER_IMAGE
+        - image: lockspace-initializer
+          alias: INITIALIZER_IMAGE
+        - image: lockspace-attacher
+          alias: ATTACHER_IMAGE
+        - image: lockspace-detector
+          alias: DETECTOR_IMAGE
     - image: virt-daemon
       docker:
         dockerfile: build/virt-daemon/Dockerfile
     - image: virt-prerunner
       docker:
         dockerfile: build/virt-prerunner/Dockerfile
+    - image: lockspace-initializer
+      docker:
+        dockerfile: build/lockspace-initializer/Dockerfile
+    - image: lockspace-attacher
+      docker:
+        dockerfile: build/lockspace-attacher/Dockerfile
+    - image: lockspace-detector
+      docker:
+        dockerfile: build/lockspace-detector/Dockerfile
 deploy:
   kustomize:
     paths:

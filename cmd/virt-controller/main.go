@@ -84,6 +84,18 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err = (&controller.LockspaceReconciler{
+		Client:               mgr.GetClient(),
+		Scheme:               mgr.GetScheme(),
+		Recorder:             mgr.GetEventRecorderFor("lockspace-controller"),
+		DetectorImageName:    os.Getenv("DETECTOR_IMAGE"),
+		AttacherImageName:    os.Getenv("ATTACHER_IMAGE"),
+		InitializerImageName: os.Getenv("INITIALIZER_IMAGE"),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Lockspace")
+		os.Exit(1)
+	}
+
 	mgr.GetWebhookServer().Register("/mutate-v1alpha1-virtualmachine", &webhook.Admission{Handler: &controller.VMMutator{}})
 	mgr.GetWebhookServer().Register("/validate-v1alpha1-virtualmachine", &webhook.Admission{Handler: &controller.VMValidator{}})
 	mgr.GetWebhookServer().Register("/validate-v1alpha1-virtualmachinemigration", &webhook.Admission{Handler: &controller.VMMValidator{Client: mgr.GetClient()}})

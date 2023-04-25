@@ -12,6 +12,8 @@ import (
 
 type VirtV1alpha1Interface interface {
 	RESTClient() rest.Interface
+	LocksGetter
+	LockspacesGetter
 	VirtualMachinesGetter
 	VirtualMachineMigrationsGetter
 }
@@ -19,6 +21,14 @@ type VirtV1alpha1Interface interface {
 // VirtV1alpha1Client is used to interact with features provided by the virt.virtink.smartx.com group.
 type VirtV1alpha1Client struct {
 	restClient rest.Interface
+}
+
+func (c *VirtV1alpha1Client) Locks(namespace string) LockInterface {
+	return newLocks(c, namespace)
+}
+
+func (c *VirtV1alpha1Client) Lockspaces() LockspaceInterface {
+	return newLockspaces(c)
 }
 
 func (c *VirtV1alpha1Client) VirtualMachines(namespace string) VirtualMachineInterface {

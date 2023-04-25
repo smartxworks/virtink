@@ -23,6 +23,30 @@ jobs:
           username: smartxrocks
           password: ${{ secrets.DOCKERHUB_PUSH_TOKEN }}
 
+      - id: build_lockspace_initializer
+        uses: docker/build-push-action@v2
+        with:
+          file: build/lockspace-initializer/Dockerfile
+          tags: smartxworks/lockspace-initializer:${{ steps.get_version.outputs.version }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+
+      - id: build_lockspace_attacher
+        uses: docker/build-push-action@v2
+        with:
+          file: build/lockspace-attacher/Dockerfile
+          tags: smartxworks/lockspace-attacher:${{ steps.get_version.outputs.version }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+
+      - id: build_lockspace_detector
+        uses: docker/build-push-action@v2
+        with:
+          file: build/lockspace-detector/Dockerfile
+          tags: smartxworks/lockspace-detector:${{ steps.get_version.outputs.version }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+
       - id: build_virt_prerunner
         uses: docker/build-push-action@v2
         with:
@@ -34,7 +58,11 @@ jobs:
       - uses: docker/build-push-action@v2
         with:
           file: build/virt-controller/Dockerfile
-          build-args: PRERUNNER_IMAGE=smartxworks/virt-prerunner:${{ steps.get_version.outputs.version }}@${{ steps.build_virt_prerunner.outputs.digest }}
+          build-args: |
+            PRERUNNER_IMAGE=smartxworks/virt-prerunner:${{ steps.get_version.outputs.version }}@${{ steps.build_virt_prerunner.outputs.digest }}
+            INITIALIZER_IMAGE=smartxworks/lockspace-initializer:${{ steps.get_version.outputs.version }}@${{ steps.build_lockspace_initializer.outputs.digest }}
+            ATTACHER_IMAGE=smartxworks/lockspace-attacher:${{ steps.get_version.outputs.version }}@${{ steps.build_lockspace_attacher.outputs.digest }}
+            DETECTOR_IMAGE=smartxworks/lockspace-detector:${{ steps.get_version.outputs.version }}@${{ steps.build_lockspace_detector.outputs.digest }}
           tags: smartxworks/virt-controller:${{ steps.get_version.outputs.version }}
           platforms: linux/amd64,linux/arm64
           push: true

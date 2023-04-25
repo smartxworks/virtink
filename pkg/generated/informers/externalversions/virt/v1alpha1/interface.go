@@ -8,6 +8,10 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
+	// Locks returns a LockInformer.
+	Locks() LockInformer
+	// Lockspaces returns a LockspaceInformer.
+	Lockspaces() LockspaceInformer
 	// VirtualMachines returns a VirtualMachineInformer.
 	VirtualMachines() VirtualMachineInformer
 	// VirtualMachineMigrations returns a VirtualMachineMigrationInformer.
@@ -23,6 +27,16 @@ type version struct {
 // New returns a new Interface.
 func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakListOptions internalinterfaces.TweakListOptionsFunc) Interface {
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
+}
+
+// Locks returns a LockInformer.
+func (v *version) Locks() LockInformer {
+	return &lockInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// Lockspaces returns a LockspaceInformer.
+func (v *version) Lockspaces() LockspaceInformer {
+	return &lockspaceInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // VirtualMachines returns a VirtualMachineInformer.

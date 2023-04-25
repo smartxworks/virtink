@@ -1,0 +1,47 @@
+apiVersion: virt.virtink.smartx.com/v1alpha1
+kind: VirtualMachine
+metadata:
+  name: ubuntu-ha
+spec:
+  runPolicy: RerunOnFailure
+  enableHA: true
+  locks:
+    - ubuntu
+  instance:
+    memory:
+      size: 1Gi
+    disks:
+      - name: ubuntu
+      - name: cloud-init
+    interfaces:
+      - name: pod
+        masquerade: {}
+  volumes:
+    - name: ubuntu
+      dataVolume:
+        volumeName: ubuntu
+    - name: cloud-init
+      cloudInit:
+        userData: |-
+          #cloud-config
+          password: password
+          chpasswd: { expire: False }
+          ssh_pwauth: True
+  networks:
+    - name: pod
+      pod: {}
+---
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: ubuntu
+spec:
+  source:
+      http:
+        url: https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img
+  pvc:
+    accessModes:
+      - ReadWriteMany
+    resources:
+      requests:
+        storage: 8Gi

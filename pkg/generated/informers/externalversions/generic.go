@@ -37,6 +37,10 @@ func (f *genericInformer) Lister() cache.GenericLister {
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
 	// Group=virt.virtink.smartx.com, Version=v1alpha1
+	case v1alpha1.SchemeGroupVersion.WithResource("locks"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Virt().V1alpha1().Locks().Informer()}, nil
+	case v1alpha1.SchemeGroupVersion.WithResource("lockspaces"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Virt().V1alpha1().Lockspaces().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("virtualmachines"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Virt().V1alpha1().VirtualMachines().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("virtualmachinemigrations"):

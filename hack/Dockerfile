@@ -1,4 +1,7 @@
-FROM golang:1.19
+FROM golang:1.19-alpine
+
+RUN apk add --no-cache bash gcc git musl-dev libaio-dev
+RUN apk add --no-cache sanlock-dev --repository=http://dl-cdn.alpinelinux.org/alpine/edge/testing/
 
 WORKDIR /workspace
 

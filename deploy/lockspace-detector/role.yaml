@@ -1,0 +1,84 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: lockspace-detector
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - delete
+  - get
+  - list
+  - watch
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - virt.virtink.smartx.com
+  resources:
+  - locks
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - virt.virtink.smartx.com
+  resources:
+  - locks/status
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - virt.virtink.smartx.com
+  resources:
+  - lockspaces
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - virt.virtink.smartx.com
+  resources:
+  - virtualmachines
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - virt.virtink.smartx.com
+  resources:
+  - virtualmachines/status
+  verbs:
+  - get
+  - update

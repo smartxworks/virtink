@@ -1,0 +1,4 @@
+resources:
+  - rolebinding.yaml
+  - role.yaml
+  - sa.yaml

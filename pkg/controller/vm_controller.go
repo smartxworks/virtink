@@ -53,6 +53,7 @@ type VMReconciler struct {
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch
 // +kubebuilder:rbac:groups=cdi.kubevirt.io,resources=datavolumes,verbs=get;list;watch
 // +kubebuilder:rbac:groups=k8s.cni.cncf.io,resources=network-attachment-definitions,verbs=get;list;watch
+//+kubebuilder:rbac:groups=virt.virtink.smartx.com,resources=locks,verbs=get;list;watch;update
 
 func (r *VMReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var vm virtv1alpha1.VirtualMachine
@@ -123,6 +124,26 @@ func (r *VMReconciler) reconcile(ctx context.Context, vm *virtv1alpha1.VirtualMa
 		vm.Status.VMPodName = names.SimpleNameGenerator.GenerateName(fmt.Sprintf("vm-%s-", vm.Name))
 		vm.Status.Phase = virtv1alpha1.VirtualMachineScheduling
 	case virtv1alpha1.VirtualMachineScheduling, virtv1alpha1.VirtualMachineScheduled:
+		if vm.Status.Phase == virtv1alpha1.VirtualMachinePending {
+			for _, l := range vm.Spec.Locks {
+				var lock virtv1alpha1.Lock
+				lockKey := types.NamespacedName{
+					Name:      l,
+					Namespace: vm.Namespace,
+				}
+				if err := r.Get(ctx, lockKey, &lock); err != nil {
+					if apierrors.IsNotFound(err) {
+						return reconcileError{Result: ctrl.Result{RequeueAfter: 30 * time.Second}}
+					} else {
+						return fmt.Errorf("get VM Lock: %s", err)
+					}
+				}
+				if lock.DeletionTimestamp != nil || !lock.Status.Ready {
+					return reconcileError{Result: ctrl.Result{RequeueAfter: 30 * time.Second}}
+				}
+			}
+		}
+
 		var vmPod corev1.Pod
 		vmPodKey := types.NamespacedName{
 			Name:      vm.Status.VMPodName,
@@ -774,6 +795,77 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 		vmPod.Annotations["k8s.v1.cni.cncf.io/networks"] = string(networksJSON)
 	}
 
+	lockspaces := make(map[string]bool)
+	resources := []string{}
+	for _, l := range vm.Spec.Locks {
+		var lock virtv1alpha1.Lock
+		lockKey := types.NamespacedName{
+			Name:      l,
+			Namespace: vm.Namespace,
+		}
+		if err := r.Get(ctx, lockKey, &lock); err != nil {
+			return nil, fmt.Errorf("get VM Lock: %s", err)
+		}
+		lsName := lock.Spec.LockspaceName
+		lockspaces[lsName] = true
+		resources = append(resources, fmt.Sprintf("%s:%s:/var/lib/sanlock/%s/leases:%d", lsName, lock.Name, lsName, lock.Status.Offset))
+	}
+	if len(vm.Spec.Locks) > 0 {
+		vmPod.Spec.Containers[0].VolumeMounts = append(vmPod.Spec.Containers[0].VolumeMounts, []corev1.VolumeMount{{
+			Name:      "sanlock-run-dir",
+			MountPath: "/var/run/sanlock",
+		}, {
+			Name:             "sanlock-lib-dir",
+			MountPath:        "/var/lib/sanlock",
+			MountPropagation: func() *corev1.MountPropagationMode { p := corev1.MountPropagationHostToContainer; return &p }(),
+		}}...)
+
+		vmPod.Spec.Volumes = append(vmPod.Spec.Volumes, []corev1.Volume{{
+			Name: "sanlock-run-dir",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: "/var/run/sanlock",
+				},
+			},
+		}, {
+			Name: "sanlock-lib-dir",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: "/var/lib/sanlock",
+				},
+			},
+		}}...)
+
+		if vmPod.Spec.Affinity == nil {
+			vmPod.Spec.Affinity = &corev1.Affinity{}
+		}
+		affinity := vmPod.Spec.Affinity
+		if affinity.NodeAffinity == nil {
+			affinity.NodeAffinity = &corev1.NodeAffinity{}
+		}
+		nodeAffinity := affinity.NodeAffinity
+		if nodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution == nil {
+			nodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution = &corev1.NodeSelector{}
+		}
+		nodeSelector := nodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution
+		if nodeSelector.NodeSelectorTerms == nil {
+			nodeSelector.NodeSelectorTerms = []corev1.NodeSelectorTerm{}
+		}
+		for ls := range lockspaces {
+			nodeSelector.NodeSelectorTerms = append(nodeSelector.NodeSelectorTerms, corev1.NodeSelectorTerm{
+				MatchExpressions: []corev1.NodeSelectorRequirement{{
+					Key:      fmt.Sprintf("virtink.smartx.com/dead-lockspace-%s", ls),
+					Operator: corev1.NodeSelectorOpDoesNotExist,
+				}}},
+			)
+		}
+
+		vmPod.Spec.Containers[0].Env = append(vmPod.Spec.Containers[0].Env, corev1.EnvVar{
+			Name:  "LOCKSPACE_RESOURCE",
+			Value: strings.Join(resources, " "),
+		})
+	}
+
 	vmJSON, err := json.Marshal(vm)
 	if err != nil {
 		return nil, fmt.Errorf("marshal VM: %s", err)
@@ -1185,6 +1277,16 @@ func (r *VMReconciler) calculateMigratableCondition(ctx context.Context, vm *vir
 			Status:  metav1.ConditionFalse,
 			Reason:  "FileSystemNotMigratable",
 			Message: "migration is disabled when VM has a fileSystem",
+		}, nil
+	}
+
+	// TODO: make VM with locks migratable
+	if len(vm.Spec.Locks) > 0 {
+		return &metav1.Condition{
+			Type:    string(virtv1alpha1.VirtualMachineMigratable),
+			Status:  metav1.ConditionFalse,
+			Reason:  "HANotMigratable",
+			Message: "migration is disabled when VM has locks",
 		}, nil
 	}
 
