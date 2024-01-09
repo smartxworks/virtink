@@ -102,6 +102,7 @@ type InterfaceBindingMethod struct {
 	Bridge     *InterfaceBridge     `json:"bridge,omitempty"`
 	Masquerade *InterfaceMasquerade `json:"masquerade,omitempty"`
 	SRIOV      *InterfaceSRIOV      `json:"sriov,omitempty"`
+	VDPA       *InterfaceVDPA       `json:"vdpa,omitempty"`
 	VhostUser  *InterfaceVhostUser  `json:"vhostUser,omitempty"`
 }
 
@@ -113,6 +114,11 @@ type InterfaceMasquerade struct {
 }
 
 type InterfaceSRIOV struct {
+}
+
+type InterfaceVDPA struct {
+	NumQueues int  `json:"numQueues,omitempty"`
+	IOMMU     bool `json:"iommu,omitempty"`
 }
 
 type InterfaceVhostUser struct {

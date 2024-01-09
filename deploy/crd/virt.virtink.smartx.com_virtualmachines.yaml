@@ -910,6 +910,13 @@ spec:
                           type: string
                         sriov:
                           type: object
+                        vdpa:
+                          properties:
+                            iommu:
+                              type: boolean
+                            numQueues:
+                              type: integer
+                          type: object
                         vhostUser:
                           type: object
                       required:

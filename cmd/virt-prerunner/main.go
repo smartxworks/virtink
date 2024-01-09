@@ -252,6 +252,18 @@ func buildVMConfig(ctx context.Context, vm *virtv1alpha1.VirtualMachine) (*cloud
 						vmConfig.Devices = append(vmConfig.Devices, &sriovDeviceConfig)
 					}
 				}
+			case iface.VDPA != nil:
+				for _, networkStatus := range networkStatusList {
+					if networkStatus.Interface == linkName && networkStatus.DeviceInfo != nil && networkStatus.DeviceInfo.Vdpa != nil {
+						vdpaDeviceConfig := cloudhypervisor.VdpaConfig{
+							Id:        iface.Name,
+							NumQueues: iface.VDPA.NumQueues,
+							Iommu:     iface.VDPA.IOMMU,
+							Path:      networkStatus.DeviceInfo.Vdpa.Path,
+						}
+						vmConfig.Vdpa = append(vmConfig.Vdpa, &vdpaDeviceConfig)
+					}
+				}
 			case iface.VhostUser != nil:
 				netConfig := cloudhypervisor.NetConfig{
 					Id:        iface.Name,

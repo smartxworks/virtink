@@ -368,6 +368,17 @@ func TestValidateVM(t *testing.T) {
 	}, {
 		vm: func() *virtv1alpha1.VirtualMachine {
 			vm := validVM.DeepCopy()
+			vm.Spec.Instance.Interfaces[0].InterfaceBindingMethod.Bridge = nil
+			vm.Spec.Instance.Interfaces[0].InterfaceBindingMethod.VDPA = &virtv1alpha1.InterfaceVDPA{
+				NumQueues: 9,
+				IOMMU:     false,
+			}
+			return vm
+		}(),
+		invalidFields: []string{"spec.instance.interfaces[0].vdpa.numQueues", "spec.instance.interfaces[0].vdpa.iommu"},
+	}, {
+		vm: func() *virtv1alpha1.VirtualMachine {
+			vm := validVM.DeepCopy()
 			vm.Spec.Instance.Interfaces[0].InterfaceBindingMethod.VhostUser = &virtv1alpha1.InterfaceVhostUser{}
 			return vm
 		}(),

@@ -83,6 +83,7 @@ Each interface should declare its type by defining one of the following fields:
 | `bridge`     | Connect using a linux bridge                    |
 | `masquerade` | Connect using iptables rules to NAT the traffic |
 | `sriov`      | Passthrough a SR-IOV PCI device via VFIO        |
+| `vdpa`      | Add a vhost-vdpa device |
 
 Each interface may also have additional configuration fields that modify properties "seen" inside guest instances, as listed below:
 
@@ -223,4 +224,64 @@ spec:
     - name: sriov
       multus:
         networkName: mellanox-sriov-25g
+```
+### `vdpa` Mode
+Similar to the sriov mode, the following components need to be installed:
+- [Multus CNI](https://github.com/k8snetworkplumbingwg/multus-cni)
+- A vDPA device plugin
+- A vDPA CNI Plugin
+
+If your hardware vendor support vDPA over SR-IOV, you can use
+ the [SR-IOV Network Device Plugin](https://github.com/k8snetworkplumbingwg/sriov-network-device-plugin), here is a sample configuration:
+ ```yaml
+ apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sriovdp-config
+  namespace: kube-system
+data:
+  config.json: |
+    {
+        "resourceList": [
+            {
+                "resourceName": "jaguar",
+                "resourcePrefix": "jaguarmicro.com",
+                "selectors": {
+                    "vendors": ["1f53"],
+                    "devices": ["1000"],
+                    "drivers": ["jaguar"],
+                    "vdpaType": "vhost"
+                }
+            }
+        ]
+    }
+ ```
+ If you don't need complex network configuration, the changes to enable the SR-IOV CNI to also manage vDPA interfaces are in this repository:
+ 
+ https://github.com/amorenoz/sriov-cni/tree/rfe/vdpa
+
+#### Start an vDPA VM
+
+To create a VM that will attach to the aforementioned network, refer to the following VM spec:
+
+```yaml
+apiVersion: virt.virtink.smartx.com/v1alpha1
+kind: VirtualMachine
+spec:
+  instance:
+    interfaces:
+      - name: pod
+      - name: vdpa1
+        vdpa: { numQueues: 9, iommu: False }
+      - name: vdpa2
+        vdpa: { numQueues: 9, iommu: False }
+  networks:
+    - name: pod
+      pod: {}
+    - name: vdpa1
+      multus:
+        networkName: offload-ovn1
+    - name: vdpa2
+      multus:
+        networkName: offload-ovn2
 ```

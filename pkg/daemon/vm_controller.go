@@ -145,7 +145,7 @@ func (r *VMReconciler) reconcile(ctx context.Context, vm *virtv1alpha1.VirtualMa
 				return err
 			}
 
-			if len(vmConfig.Devices) > 0 {
+			if len(vmConfig.Devices) > 0 || len(vmConfig.Vdpa) > 0 {
 				cloudHypervisorPID, err := pid.GetPIDBySocket(filepath.Join(getVMDataDirPath(vm), "ch.sock"))
 				if err != nil {
 					return fmt.Errorf("get cloud-hypervisor process pid: %s", err)
