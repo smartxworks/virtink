@@ -165,7 +165,7 @@ func MutateVM(ctx context.Context, vm *virtv1alpha1.VirtualMachine, oldVM *virtv
 			vm.Spec.Instance.Interfaces[i].MAC = macStr
 		}
 
-		if vm.Spec.Instance.Interfaces[i].Bridge == nil && vm.Spec.Instance.Interfaces[i].Masquerade == nil && vm.Spec.Instance.Interfaces[i].SRIOV == nil && vm.Spec.Instance.Interfaces[i].VhostUser == nil {
+		if vm.Spec.Instance.Interfaces[i].Bridge == nil && vm.Spec.Instance.Interfaces[i].Masquerade == nil && vm.Spec.Instance.Interfaces[i].SRIOV == nil && vm.Spec.Instance.Interfaces[i].VDPA == nil && vm.Spec.Instance.Interfaces[i].VhostUser == nil {
 			vm.Spec.Instance.Interfaces[i].InterfaceBindingMethod = virtv1alpha1.InterfaceBindingMethod{
 				Bridge: &virtv1alpha1.InterfaceBridge{},
 			}
@@ -502,6 +502,12 @@ func ValidateInterfaceBindingMethod(ctx context.Context, bindingMethod *virtv1al
 		cnt++
 		if cnt > 1 {
 			errs = append(errs, field.Forbidden(fieldPath.Child("sriov"), "may not specify more than 1 binding method"))
+		}
+	}
+	if bindingMethod.VDPA != nil {
+		cnt++
+		if cnt > 1 {
+			errs = append(errs, field.Forbidden(fieldPath.Child("vdpa"), "may not specify more than 1 binding method"))
 		}
 	}
 	if bindingMethod.VhostUser != nil {
