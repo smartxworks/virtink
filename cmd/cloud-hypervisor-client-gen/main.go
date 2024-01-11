@@ -4,7 +4,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"sort"
 	"strings"
@@ -18,13 +18,13 @@ import (
 var clientTemplate string
 
 func main() {
-	resp, err := http.Get("https://raw.githubusercontent.com/cloud-hypervisor/cloud-hypervisor/v30.0/vmm/src/api/openapi/cloud-hypervisor.yaml")
+	resp, err := http.Get("https://raw.githubusercontent.com/cloud-hypervisor/cloud-hypervisor/v37.0/vmm/src/api/openapi/cloud-hypervisor.yaml")
 	if err != nil {
 		panic(err)
 	}
 	defer resp.Body.Close()
 
-	spec, err := ioutil.ReadAll(resp.Body)
+	spec, err := io.ReadAll(resp.Body)
 	if err != nil {
 		panic(err)
 	}

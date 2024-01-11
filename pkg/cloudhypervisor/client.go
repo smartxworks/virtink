@@ -7,7 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 )
@@ -48,7 +48,7 @@ func (c *Client) VmAddDevice(ctx context.Context, arg *DeviceConfig) (*PciDevice
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("request failed: %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
 	}
 
@@ -79,7 +79,7 @@ func (c *Client) VmAddDisk(ctx context.Context, arg *DiskConfig) (*PciDeviceInfo
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("request failed: %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
 	}
 
@@ -110,7 +110,7 @@ func (c *Client) VmAddFs(ctx context.Context, arg *FsConfig) (*PciDeviceInfo, er
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("request failed: %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
 	}
 
@@ -141,7 +141,7 @@ func (c *Client) VmAddNet(ctx context.Context, arg *NetConfig) (*PciDeviceInfo, 
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("request failed: %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
 	}
 
@@ -172,7 +172,38 @@ func (c *Client) VmAddPmem(ctx context.Context, arg *PmemConfig) (*PciDeviceInfo
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("request failed: %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
+	}
+
+	var ret *PciDeviceInfo
+	if err := json.NewDecoder(resp.Body).Decode(&ret); err != nil {
+		return nil, fmt.Errorf("decode response: %s", err)
+	}
+
+	return ret, nil
+}
+
+// Add a new userspace device to the VM
+func (c *Client) VmAddUserDevice(ctx context.Context, arg *VmAddUserDevice) (*PciDeviceInfo, error) {
+	reqBody, err := json.Marshal(arg)
+	if err != nil {
+		return nil, fmt.Errorf("encode request: %s", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "PUT", "http://localhost/api/v1/vm.add-user-device", bytes.NewBuffer(reqBody))
+	if err != nil {
+		return nil, fmt.Errorf("build request: %s", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("do request: %s", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("request failed: %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
 	}
 
@@ -203,7 +234,7 @@ func (c *Client) VmAddVdpa(ctx context.Context, arg *VdpaConfig) (*PciDeviceInfo
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("request failed: %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
 	}
 
@@ -234,7 +265,7 @@ func (c *Client) VmAddVsock(ctx context.Context, arg *VsockConfig) (*PciDeviceIn
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("request failed: %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
 	}
 
@@ -261,7 +292,7 @@ func (c *Client) VmBoot(ctx context.Context) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("request failed: %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
 	}
 
@@ -287,7 +318,7 @@ func (c *Client) VmCoredump(ctx context.Context, arg *VmCoredumpData) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("request failed: %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
 	}
 
@@ -309,7 +340,7 @@ func (c *Client) VmCounters(ctx context.Context) (*VmCounters, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("request failed: %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
 	}
 
@@ -340,7 +371,7 @@ func (c *Client) VmCreate(ctx context.Context, arg *VmConfig) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("request failed: %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
 	}
 
@@ -362,7 +393,7 @@ func (c *Client) VmDelete(ctx context.Context) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("request failed: %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
 	}
 
@@ -384,7 +415,7 @@ func (c *Client) VmInfo(ctx context.Context) (*VmInfo, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("request failed: %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
 	}
 
@@ -411,7 +442,7 @@ func (c *Client) VmPause(ctx context.Context) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("request failed: %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
 	}
 
@@ -433,7 +464,7 @@ func (c *Client) VmPowerButton(ctx context.Context) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("request failed: %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
 	}
 
@@ -455,7 +486,7 @@ func (c *Client) VmReboot(ctx context.Context) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("request failed: %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
 	}
 
@@ -481,7 +512,7 @@ func (c *Client) VmReceiveMigration(ctx context.Context, arg *ReceiveMigrationDa
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("request failed: %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
 	}
 
@@ -507,7 +538,7 @@ func (c *Client) VmRemoveDevice(ctx context.Context, arg *VmRemoveDevice) error 
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("request failed: %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
 	}
 
@@ -533,7 +564,7 @@ func (c *Client) VmResize(ctx context.Context, arg *VmResize) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("request failed: %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
 	}
 
@@ -559,7 +590,7 @@ func (c *Client) VmResizeZone(ctx context.Context, arg *VmResizeZone) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("request failed: %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
 	}
 
@@ -585,7 +616,7 @@ func (c *Client) VmRestore(ctx context.Context, arg *RestoreConfig) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("request failed: %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
 	}
 
@@ -607,7 +638,7 @@ func (c *Client) VmResume(ctx context.Context) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("request failed: %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
 	}
 
@@ -633,7 +664,7 @@ func (c *Client) VmSendMigration(ctx context.Context, arg *SendMigrationData) er
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("request failed: %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
 	}
 
@@ -655,7 +686,7 @@ func (c *Client) VmShutdown(ctx context.Context) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("request failed: %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
 	}
 
@@ -681,7 +712,7 @@ func (c *Client) VmSnapshot(ctx context.Context, arg *VmSnapshotConfig) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("request failed: %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
 	}
 
@@ -703,7 +734,7 @@ func (c *Client) VmmPing(ctx context.Context) (*VmmPingResponse, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("request failed: %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
 	}
 
@@ -730,7 +761,7 @@ func (c *Client) VmmShutdown(ctx context.Context) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("request failed: %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
 	}
 
@@ -744,9 +775,10 @@ type BalloonConfig struct {
 }
 
 type ConsoleConfig struct {
-	File  string `json:"file,omitempty"`
-	Iommu bool   `json:"iommu,omitempty"`
-	Mode  string `json:"mode"`
+	File   string `json:"file,omitempty"`
+	Iommu  bool   `json:"iommu,omitempty"`
+	Mode   string `json:"mode"`
+	Socket string `json:"socket,omitempty"`
 }
 
 type CpuAffinity struct {
@@ -799,6 +831,7 @@ type DiskConfig struct {
 	QueueSize         int                `json:"queue_size,omitempty"`
 	RateLimiterConfig *RateLimiterConfig `json:"rate_limiter_config,omitempty"`
 	Readonly          bool               `json:"readonly,omitempty"`
+	Serial            string             `json:"serial,omitempty"`
 	VhostSocket       string             `json:"vhost_socket,omitempty"`
 	VhostUser         bool               `json:"vhost_user,omitempty"`
 }
@@ -863,6 +896,7 @@ type NumaConfig struct {
 	Distances      []*NumaDistance `json:"distances,omitempty"`
 	GuestNumaId    int             `json:"guest_numa_id"`
 	MemoryZones    []string        `json:"memory_zones,omitempty"`
+	PciSegments    []int           `json:"pci_segments,omitempty"`
 	SgxEpcSections []string        `json:"sgx_epc_sections,omitempty"`
 }
 
@@ -953,6 +987,10 @@ type VdpaConfig struct {
 	PciSegment int16  `json:"pci_segment,omitempty"`
 }
 
+type VmAddUserDevice struct {
+	Socket string `json:"socket"`
+}
+
 // Virtual machine configuration
 type VmConfig struct {
 	Balloon  *BalloonConfig  `json:"balloon,omitempty"`
@@ -1013,7 +1051,10 @@ type VmSnapshotConfig struct {
 
 // Virtual Machine Monitor information
 type VmmPingResponse struct {
-	Version string `json:"version"`
+	BuildVersion string   `json:"build_version,omitempty"`
+	Features     []string `json:"features,omitempty"`
+	Pid          int64    `json:"pid,omitempty"`
+	Version      string   `json:"version"`
 }
 
 type VsockConfig struct {

@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -25,11 +26,14 @@ type VMMValidator struct {
 	decoder *admission.Decoder
 }
 
-var _ admission.DecoderInjector = &VMMValidator{}
 var _ admission.Handler = &VMMValidator{}
 
-func (h *VMMValidator) InjectDecoder(decoder *admission.Decoder) error {
-	h.decoder = decoder
+func (h *VMMValidator) SetupWebhookWithManager(mgr ctrl.Manager) error {
+	h.decoder = admission.NewDecoder(mgr.GetScheme())
+
+	mgr.GetWebhookServer().Register("/validate-v1alpha1-virtualmachinemigration", &webhook.Admission{
+		Handler: h,
+	})
 	return nil
 }
 

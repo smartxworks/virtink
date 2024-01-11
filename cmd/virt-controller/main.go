@@ -12,7 +12,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	virtv1alpha1 "github.com/smartxworks/virtink/pkg/apis/virt/v1alpha1"
 	"github.com/smartxworks/virtink/pkg/controller"
@@ -54,8 +54,7 @@ func main() {
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
-		MetricsBindAddress:     metricsAddr,
-		Port:                   9443,
+		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "controller.virtink.smartx.com",
@@ -75,6 +74,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err := (&controller.VMMutator{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "VMMutator")
+		os.Exit(1)
+	}
+	if err := (&controller.VMValidator{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "VMValidator")
+		os.Exit(1)
+	}
+
 	if err = (&controller.VMMReconciler{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
@@ -84,9 +92,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	mgr.GetWebhookServer().Register("/mutate-v1alpha1-virtualmachine", &webhook.Admission{Handler: &controller.VMMutator{}})
-	mgr.GetWebhookServer().Register("/validate-v1alpha1-virtualmachine", &webhook.Admission{Handler: &controller.VMValidator{}})
-	mgr.GetWebhookServer().Register("/validate-v1alpha1-virtualmachinemigration", &webhook.Admission{Handler: &controller.VMMValidator{Client: mgr.GetClient()}})
+	if err := (&controller.VMMValidator{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "VMMValidator")
+		os.Exit(1)
+	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")

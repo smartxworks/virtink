@@ -4,7 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 )
 
@@ -17,7 +17,7 @@ func LoadCert(certDirPath string) (*tls.Certificate, error) {
 }
 
 func LoadCACert(certDirPath string) (*x509.CertPool, error) {
-	caCertData, err := ioutil.ReadFile(filepath.Join(certDirPath, "ca.crt"))
+	caCertData, err := os.ReadFile(filepath.Join(certDirPath, "ca.crt"))
 	if err != nil {
 		return nil, fmt.Errorf("read CA cert file: %s", err)
 	}

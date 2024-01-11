@@ -27,7 +27,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	virtv1alpha1 "github.com/smartxworks/virtink/pkg/apis/virt/v1alpha1"
 	"github.com/smartxworks/virtink/pkg/volumeutil"
@@ -1271,56 +1270,54 @@ func (r *VMReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&virtv1alpha1.VirtualMachine{}).
 		Owns(&corev1.Pod{}).
-		Watches(&source.Kind{Type: &corev1.Pod{}},
-			handler.EnqueueRequestsFromMapFunc(func(obj client.Object) []reconcile.Request {
-				if _, ok := obj.(*corev1.Pod); !ok {
+		Watches(&corev1.Pod{}, handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
+			if _, ok := obj.(*corev1.Pod); !ok {
+				return nil
+			}
+			controllerRef := metav1.GetControllerOf(obj)
+			if controllerRef != nil && controllerRef.Kind == "Pod" {
+				pod := corev1.Pod{}
+				podKey := types.NamespacedName{Namespace: obj.GetNamespace(), Name: controllerRef.Name}
+				if err := r.Client.Get(context.Background(), podKey, &pod); err != nil {
 					return nil
 				}
-				controllerRef := metav1.GetControllerOf(obj)
-				if controllerRef != nil && controllerRef.Kind == "Pod" {
-					pod := corev1.Pod{}
-					podKey := types.NamespacedName{Namespace: obj.GetNamespace(), Name: controllerRef.Name}
-					if err := r.Client.Get(context.Background(), podKey, &pod); err != nil {
-						return nil
-					}
-					controllerRef = metav1.GetControllerOf(&pod)
-				}
+				controllerRef = metav1.GetControllerOf(&pod)
+			}
 
-				if controllerRef == nil || controllerRef.Kind != "VirtualMachine" {
-					return nil
-				}
+			if controllerRef == nil || controllerRef.Kind != "VirtualMachine" {
+				return nil
+			}
 
-				return []reconcile.Request{{
-					NamespacedName: types.NamespacedName{
-						Namespace: obj.GetNamespace(),
-						Name:      controllerRef.Name,
-					},
-				}}
-			})).
-		Watches(&source.Kind{Type: &corev1.PersistentVolumeClaim{}},
-			handler.EnqueueRequestsFromMapFunc(func(obj client.Object) []reconcile.Request {
-				if _, ok := obj.(*corev1.PersistentVolumeClaim); !ok {
-					return nil
-				}
-				var vmList virtv1alpha1.VirtualMachineList
-				if err := r.Client.List(context.Background(), &vmList, client.InNamespace(obj.GetNamespace())); err != nil {
-					return nil
-				}
-				requests := []reconcile.Request{}
-				for _, vm := range vmList.Items {
-					for _, volume := range vm.Spec.Volumes {
-						if volume.PVCName() == obj.GetName() {
-							requests = append(requests, reconcile.Request{
-								NamespacedName: types.NamespacedName{
-									Namespace: vm.Namespace,
-									Name:      vm.Name,
-								},
-							})
-							break
-						}
+			return []reconcile.Request{{
+				NamespacedName: types.NamespacedName{
+					Namespace: obj.GetNamespace(),
+					Name:      controllerRef.Name,
+				},
+			}}
+		})).
+		Watches(&corev1.PersistentVolumeClaim{}, handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
+			if _, ok := obj.(*corev1.PersistentVolumeClaim); !ok {
+				return nil
+			}
+			var vmList virtv1alpha1.VirtualMachineList
+			if err := r.Client.List(context.Background(), &vmList, client.InNamespace(obj.GetNamespace())); err != nil {
+				return nil
+			}
+			requests := []reconcile.Request{}
+			for _, vm := range vmList.Items {
+				for _, volume := range vm.Spec.Volumes {
+					if volume.PVCName() == obj.GetName() {
+						requests = append(requests, reconcile.Request{
+							NamespacedName: types.NamespacedName{
+								Namespace: vm.Namespace,
+								Name:      vm.Name,
+							},
+						})
+						break
 					}
 				}
-				return requests
-			})).
+			}
+			return requests
+		})).
 		Complete(r)
 }
