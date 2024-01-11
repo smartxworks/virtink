@@ -13,6 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
@@ -27,11 +28,14 @@ type VMMutator struct {
 	decoder *admission.Decoder
 }
 
-var _ admission.DecoderInjector = &VMMutator{}
 var _ admission.Handler = &VMMutator{}
 
-func (h *VMMutator) InjectDecoder(decode *admission.Decoder) error {
-	h.decoder = decode
+func (h *VMMutator) SetupWebhookWithManager(mgr ctrl.Manager) error {
+	h.decoder = admission.NewDecoder(mgr.GetScheme())
+
+	mgr.GetWebhookServer().Register("/mutate-v1alpha1-virtualmachine", &webhook.Admission{
+		Handler: h,
+	})
 	return nil
 }
 
@@ -186,11 +190,14 @@ type VMValidator struct {
 	decoder *admission.Decoder
 }
 
-var _ admission.DecoderInjector = &VMValidator{}
 var _ admission.Handler = &VMValidator{}
 
-func (h *VMValidator) InjectDecoder(decoder *admission.Decoder) error {
-	h.decoder = decoder
+func (h *VMValidator) SetupWebhookWithManager(mgr ctrl.Manager) error {
+	h.decoder = admission.NewDecoder(mgr.GetScheme())
+
+	mgr.GetWebhookServer().Register("/validate-v1alpha1-virtualmachine", &webhook.Admission{
+		Handler: h,
+	})
 	return nil
 }
 

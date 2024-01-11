@@ -2,7 +2,7 @@ package cpuset
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -28,7 +28,7 @@ func Get() (CPUSet, error) {
 		cpuSetPath = filepath.Join(cgroupBasePath, "cpuset.cpus.effective")
 	}
 
-	b, err := ioutil.ReadFile(cpuSetPath)
+	b, err := os.ReadFile(cpuSetPath)
 	if err != nil {
 		return nil, fmt.Errorf("read CPU set file: %s", err)
 	}

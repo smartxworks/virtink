@@ -14,7 +14,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	virtv1alpha1 "github.com/smartxworks/virtink/pkg/apis/virt/v1alpha1"
 )
@@ -120,28 +119,27 @@ func (r *VMMReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&virtv1alpha1.VirtualMachineMigration{}).
-		Watches(&source.Kind{Type: &virtv1alpha1.VirtualMachine{}},
-			handler.EnqueueRequestsFromMapFunc(func(obj client.Object) []reconcile.Request {
-				vm := obj.(*virtv1alpha1.VirtualMachine)
-				if vm.Status.Migration == nil || vm.Status.Migration.UID == "" {
-					return nil
-				}
+		Watches(&virtv1alpha1.VirtualMachine{}, handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
+			vm := obj.(*virtv1alpha1.VirtualMachine)
+			if vm.Status.Migration == nil || vm.Status.Migration.UID == "" {
+				return nil
+			}
 
-				var vmmList virtv1alpha1.VirtualMachineMigrationList
-				if err := r.Client.List(context.Background(), &vmmList, client.MatchingFields{".metadata.uid": string(vm.Status.Migration.UID)}); err != nil {
-					return nil
-				}
+			var vmmList virtv1alpha1.VirtualMachineMigrationList
+			if err := r.Client.List(context.Background(), &vmmList, client.MatchingFields{".metadata.uid": string(vm.Status.Migration.UID)}); err != nil {
+				return nil
+			}
 
-				var requests []reconcile.Request
-				for _, vmm := range vmmList.Items {
-					requests = append(requests, reconcile.Request{
-						NamespacedName: types.NamespacedName{
-							Namespace: vmm.Namespace,
-							Name:      vmm.Name,
-						},
-					})
-				}
-				return requests
-			})).
+			var requests []reconcile.Request
+			for _, vmm := range vmmList.Items {
+				requests = append(requests, reconcile.Request{
+					NamespacedName: types.NamespacedName{
+						Namespace: vmm.Namespace,
+						Name:      vmm.Name,
+					},
+				})
+			}
+			return requests
+		})).
 		Complete(r)
 }
