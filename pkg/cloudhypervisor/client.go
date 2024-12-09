@@ -719,6 +719,28 @@ func (c *Client) VmSnapshot(ctx context.Context, arg *VmSnapshotConfig) error {
 	return nil
 }
 
+// Inject an NMI.
+func (c *Client) VmmNmi(ctx context.Context) error {
+
+	req, err := http.NewRequestWithContext(ctx, "PUT", "http://localhost/api/v1/vmm.nmi", nil)
+	if err != nil {
+		return fmt.Errorf("build request: %s", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("do request: %s", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("request failed: %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
+	}
+
+	return nil
+}
+
 // Ping the VMM to check for API server availability
 func (c *Client) VmmPing(ctx context.Context) (*VmmPingResponse, error) {
 
@@ -807,11 +829,18 @@ type CpusConfig struct {
 	Topology    *CpuTopology   `json:"topology,omitempty"`
 }
 
+type DebugConsoleConfig struct {
+	File   string `json:"file,omitempty"`
+	Iobase int    `json:"iobase,omitempty"`
+	Mode   string `json:"mode"`
+}
+
 type DeviceConfig struct {
-	Id         string `json:"id,omitempty"`
-	Iommu      bool   `json:"iommu,omitempty"`
-	Path       string `json:"path"`
-	PciSegment int16  `json:"pci_segment,omitempty"`
+	Id                 string `json:"id,omitempty"`
+	Iommu              bool   `json:"iommu,omitempty"`
+	Path               string `json:"path"`
+	PciSegment         int16  `json:"pci_segment,omitempty"`
+	XNvGpudirectClique int    `json:"x_nv_gpudirect_clique,omitempty"`
 }
 
 type DeviceNode struct {
@@ -822,18 +851,20 @@ type DeviceNode struct {
 }
 
 type DiskConfig struct {
-	Direct            bool               `json:"direct,omitempty"`
-	Id                string             `json:"id,omitempty"`
-	Iommu             bool               `json:"iommu,omitempty"`
-	NumQueues         int                `json:"num_queues,omitempty"`
-	Path              string             `json:"path"`
-	PciSegment        int16              `json:"pci_segment,omitempty"`
-	QueueSize         int                `json:"queue_size,omitempty"`
-	RateLimiterConfig *RateLimiterConfig `json:"rate_limiter_config,omitempty"`
-	Readonly          bool               `json:"readonly,omitempty"`
-	Serial            string             `json:"serial,omitempty"`
-	VhostSocket       string             `json:"vhost_socket,omitempty"`
-	VhostUser         bool               `json:"vhost_user,omitempty"`
+	Direct            bool                 `json:"direct,omitempty"`
+	Id                string               `json:"id,omitempty"`
+	Iommu             bool                 `json:"iommu,omitempty"`
+	NumQueues         int                  `json:"num_queues,omitempty"`
+	Path              string               `json:"path"`
+	PciSegment        int16                `json:"pci_segment,omitempty"`
+	QueueAffinity     []*VirtQueueAffinity `json:"queue_affinity,omitempty"`
+	QueueSize         int                  `json:"queue_size,omitempty"`
+	RateLimitGroup    string               `json:"rate_limit_group,omitempty"`
+	RateLimiterConfig *RateLimiterConfig   `json:"rate_limiter_config,omitempty"`
+	Readonly          bool                 `json:"readonly,omitempty"`
+	Serial            string               `json:"serial,omitempty"`
+	VhostSocket       string               `json:"vhost_socket,omitempty"`
+	VhostUser         bool                 `json:"vhost_user,omitempty"`
 }
 
 type FsConfig struct {
@@ -843,6 +874,11 @@ type FsConfig struct {
 	QueueSize  int    `json:"queue_size"`
 	Socket     string `json:"socket"`
 	Tag        string `json:"tag"`
+}
+
+type LandlockConfig struct {
+	Access string `json:"access"`
+	Path   string `json:"path"`
 }
 
 type MemoryConfig struct {
@@ -919,6 +955,12 @@ type PciDeviceInfo struct {
 	Id  string `json:"id"`
 }
 
+type PciSegmentConfig struct {
+	Mmio32ApertureWeight int   `json:"mmio32_aperture_weight,omitempty"`
+	Mmio64ApertureWeight int   `json:"mmio64_aperture_weight,omitempty"`
+	PciSegment           int16 `json:"pci_segment"`
+}
+
 type PlatformConfig struct {
 	IommuSegments  []int16  `json:"iommu_segments,omitempty"`
 	NumPciSegments int16    `json:"num_pci_segments,omitempty"`
@@ -935,6 +977,11 @@ type PmemConfig struct {
 	Iommu         bool   `json:"iommu,omitempty"`
 	PciSegment    int16  `json:"pci_segment,omitempty"`
 	Size          int64  `json:"size,omitempty"`
+}
+
+type RateLimitGroupConfig struct {
+	Id                string             `json:"id"`
+	RateLimiterConfig *RateLimiterConfig `json:"rate_limiter_config"`
 }
 
 // Defines an IO rate limiter with independent bytes/s and ops/s limits. Limits are defined by configuring each of the _bandwidth_ and _ops_ token buckets.
@@ -987,32 +1034,43 @@ type VdpaConfig struct {
 	PciSegment int16  `json:"pci_segment,omitempty"`
 }
 
+type VirtQueueAffinity struct {
+	HostCpus   []int `json:"host_cpus"`
+	QueueIndex int   `json:"queue_index"`
+}
+
 type VmAddUserDevice struct {
 	Socket string `json:"socket"`
 }
 
 // Virtual machine configuration
 type VmConfig struct {
-	Balloon  *BalloonConfig  `json:"balloon,omitempty"`
-	Console  *ConsoleConfig  `json:"console,omitempty"`
-	Cpus     *CpusConfig     `json:"cpus,omitempty"`
-	Devices  []*DeviceConfig `json:"devices,omitempty"`
-	Disks    []*DiskConfig   `json:"disks,omitempty"`
-	Fs       []*FsConfig     `json:"fs,omitempty"`
-	Iommu    bool            `json:"iommu,omitempty"`
-	Memory   *MemoryConfig   `json:"memory,omitempty"`
-	Net      []*NetConfig    `json:"net,omitempty"`
-	Numa     []*NumaConfig   `json:"numa,omitempty"`
-	Payload  *PayloadConfig  `json:"payload"`
-	Platform *PlatformConfig `json:"platform,omitempty"`
-	Pmem     []*PmemConfig   `json:"pmem,omitempty"`
-	Rng      *RngConfig      `json:"rng,omitempty"`
-	Serial   *ConsoleConfig  `json:"serial,omitempty"`
-	SgxEpc   []*SgxEpcConfig `json:"sgx_epc,omitempty"`
-	Tpm      *TpmConfig      `json:"tpm,omitempty"`
-	Vdpa     []*VdpaConfig   `json:"vdpa,omitempty"`
-	Vsock    *VsockConfig    `json:"vsock,omitempty"`
-	Watchdog bool            `json:"watchdog,omitempty"`
+	Balloon         *BalloonConfig          `json:"balloon,omitempty"`
+	Console         *ConsoleConfig          `json:"console,omitempty"`
+	Cpus            *CpusConfig             `json:"cpus,omitempty"`
+	DebugConsole    *DebugConsoleConfig     `json:"debug_console,omitempty"`
+	Devices         []*DeviceConfig         `json:"devices,omitempty"`
+	Disks           []*DiskConfig           `json:"disks,omitempty"`
+	Fs              []*FsConfig             `json:"fs,omitempty"`
+	Iommu           bool                    `json:"iommu,omitempty"`
+	LandlockEnable  bool                    `json:"landlock_enable,omitempty"`
+	LandlockRules   []*LandlockConfig       `json:"landlock_rules,omitempty"`
+	Memory          *MemoryConfig           `json:"memory,omitempty"`
+	Net             []*NetConfig            `json:"net,omitempty"`
+	Numa            []*NumaConfig           `json:"numa,omitempty"`
+	Payload         *PayloadConfig          `json:"payload"`
+	PciSegments     []*PciSegmentConfig     `json:"pci_segments,omitempty"`
+	Platform        *PlatformConfig         `json:"platform,omitempty"`
+	Pmem            []*PmemConfig           `json:"pmem,omitempty"`
+	Pvpanic         bool                    `json:"pvpanic,omitempty"`
+	RateLimitGroups []*RateLimitGroupConfig `json:"rate_limit_groups,omitempty"`
+	Rng             *RngConfig              `json:"rng,omitempty"`
+	Serial          *ConsoleConfig          `json:"serial,omitempty"`
+	SgxEpc          []*SgxEpcConfig         `json:"sgx_epc,omitempty"`
+	Tpm             *TpmConfig              `json:"tpm,omitempty"`
+	Vdpa            []*VdpaConfig           `json:"vdpa,omitempty"`
+	Vsock           *VsockConfig            `json:"vsock,omitempty"`
+	Watchdog        bool                    `json:"watchdog,omitempty"`
 }
 
 type VmCoredumpData struct {
