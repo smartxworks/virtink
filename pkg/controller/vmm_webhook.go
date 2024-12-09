@@ -23,7 +23,7 @@ import (
 
 type VMMValidator struct {
 	client.Client
-	decoder *admission.Decoder
+	decoder admission.Decoder
 }
 
 var _ admission.Handler = &VMMValidator{}
