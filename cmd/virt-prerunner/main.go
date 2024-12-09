@@ -15,8 +15,8 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/docker/libnetwork/resolvconf"
-	"github.com/docker/libnetwork/types"
+	"github.com/docker/docker/libnetwork/resolvconf"
+	"github.com/docker/docker/libnetwork/types"
 	userspacecni "github.com/intel/userspace-cni-network-plugin/pkg/types"
 	netv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	"github.com/namsral/flag"

@@ -15,6 +15,6 @@ jobs:
 
       - uses: actions/setup-go@v2
         with:
-          go-version: 1.21.1
+          go-version: 1.23.4
 
       - run: make e2e

@@ -25,7 +25,7 @@ import (
 var memoryOverhead = "256Mi"
 
 type VMMutator struct {
-	decoder *admission.Decoder
+	decoder admission.Decoder
 }
 
 var _ admission.Handler = &VMMutator{}
@@ -187,7 +187,7 @@ func MutateVM(ctx context.Context, vm *virtv1alpha1.VirtualMachine, oldVM *virtv
 // +kubebuilder:webhook:path=/validate-v1alpha1-virtualmachine,mutating=false,failurePolicy=fail,sideEffects=None,groups=virt.virtink.smartx.com,resources=virtualmachines,verbs=create;update,versions=v1alpha1,name=validate.virtualmachine.v1alpha1.virt.virtink.smartx.com,admissionReviewVersions={v1,v1beta1}
 
 type VMValidator struct {
-	decoder *admission.Decoder
+	decoder admission.Decoder
 }
 
 var _ admission.Handler = &VMValidator{}
