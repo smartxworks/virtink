@@ -1,4 +1,4 @@
-FROM golang:1.23.4-alpine AS builder
+FROM golang:1.23.4-alpine3.21 AS builder
 
 WORKDIR /workspace
 
@@ -10,7 +10,7 @@ COPY cmd/ cmd/
 COPY pkg/ pkg/
 RUN --mount=type=cache,target=/root/.cache/go-build CGO_ENABLED=0 go build -a cmd/virt-daemon/main.go
 
-FROM alpine
+FROM alpine:3.21.0
 
 COPY --from=builder /workspace/main /usr/bin/virt-daemon
 ENTRYPOINT ["virt-daemon"]
