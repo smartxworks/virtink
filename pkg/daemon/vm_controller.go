@@ -942,7 +942,7 @@ type volumeMountRecord struct {
 }
 
 func isVMNotCreatedError(err error) bool {
-	return strings.Contains(err.Error(), "VmNotCreated")
+	return strings.Contains(err.Error(), "VM is not created")
 }
 
 func isBlockFile(filePath string) bool {
