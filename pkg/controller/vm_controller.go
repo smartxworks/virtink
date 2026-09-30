@@ -487,7 +487,10 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 				Args:      []string{"cloud-init"},
 			}
 
-			metaData := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("instance-id: %s\nlocal-hostname: %s", vm.UID, vm.Name)))
+			// cloud-init reads local-hostname. tiny-cloud, which Alpine images
+			// use, reads hostname first, and up to v3.4.1 never falls back to
+			// local-hostname, so both are given.
+			metaData := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("instance-id: %s\nlocal-hostname: %s\nhostname: %s", vm.UID, vm.Name, vm.Name)))
 			initContainer.Args = append(initContainer.Args, metaData)
 
 			var userData string
