@@ -413,6 +413,10 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 	}
 	vmPod.Labels["virtink.io/vm.name"] = vm.Name
 
+	if vmPod.Annotations == nil {
+		vmPod.Annotations = map[string]string{}
+	}
+
 	if vm.Spec.Instance.Kernel != nil {
 		vmPod.Spec.Volumes = append(vmPod.Spec.Volumes, corev1.Volume{
 			Name: "virtink-kernel",
@@ -654,17 +658,15 @@ func (r *VMReconciler) buildVMPod(ctx context.Context, vm *virtv1alpha1.VirtualM
 
 		switch {
 		case network.Multus != nil:
+			nadKey := multusNetworkKey(vm, network.Multus.NetworkName)
 			networks = append(networks, netv1.NetworkSelectionElement{
-				Name:             network.Multus.NetworkName,
+				Name:             nadKey.Name,
+				Namespace:        nadKey.Namespace,
 				InterfaceRequest: fmt.Sprintf("net%d", i),
 				MacRequest:       iface.MAC,
 			})
 
 			var nad netv1.NetworkAttachmentDefinition
-			nadKey := types.NamespacedName{
-				Name:      network.Multus.NetworkName,
-				Namespace: vm.Namespace,
-			}
 			if err := r.Client.Get(ctx, nadKey, &nad); err != nil {
 				return nil, fmt.Errorf("get NAD: %s", err)
 			}
@@ -1237,6 +1239,16 @@ func (r *VMReconciler) deleteAllVMPods(ctx context.Context, vm *virtv1alpha1.Vir
 		r.Recorder.Eventf(vm, corev1.EventTypeNormal, "DeletedVMPod", fmt.Sprintf("Deleted VM Pod %q", vmPod.Name))
 	}
 	return false, nil
+}
+
+// multusNetworkKey returns the NAD of the Multus network name of the VM, which
+// is "[<namespace>/]<name>" as in the k8s.v1.cni.cncf.io/networks annotation,
+// in the VM's namespace by default.
+func multusNetworkKey(vm *virtv1alpha1.VirtualMachine, networkName string) types.NamespacedName {
+	if namespace, name, ok := strings.Cut(networkName, "/"); ok {
+		return types.NamespacedName{Namespace: namespace, Name: name}
+	}
+	return types.NamespacedName{Namespace: vm.Namespace, Name: networkName}
 }
 
 func incrementContainerResource(container *corev1.Container, resourceName string) {

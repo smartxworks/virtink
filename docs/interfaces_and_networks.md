@@ -70,6 +70,8 @@ spec:
         networkName: ovs-br1
 ```
 
+The `networkName` refers to a `NetworkAttachmentDefinition` in the VM's namespace. To use one in another namespace, give its namespace too, as `<namespace>/<name>`, such as `networkName: kube-system/ovs-br1`.
+
 > **Note**: The [macvlan](https://www.cni.dev/plugins/current/main/macvlan/) CNI plugin cannot work with bridge interface, since the unicast frame to VM will be dropped without `passthru` mode.
 
 ## VM Network Interfaces

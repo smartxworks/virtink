@@ -8,10 +8,12 @@ import (
 	"net"
 	"net/http"
 	"reflect"
+	"strings"
 
 	admissionv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -785,6 +787,20 @@ func ValidateMultusNetworkSource(ctx context.Context, source *virtv1alpha1.Multu
 
 	if source.NetworkName == "" {
 		errs = append(errs, field.Required(fieldPath.Child("networkName"), ""))
+		return errs
+	}
+
+	if namespace, name, ok := strings.Cut(source.NetworkName, "/"); ok {
+		for _, msg := range validation.IsDNS1123Label(namespace) {
+			errs = append(errs, field.Invalid(fieldPath.Child("networkName"), source.NetworkName, "invalid namespace: "+msg))
+		}
+		for _, msg := range validation.IsDNS1123Subdomain(name) {
+			errs = append(errs, field.Invalid(fieldPath.Child("networkName"), source.NetworkName, "invalid name: "+msg))
+		}
+	} else {
+		for _, msg := range validation.IsDNS1123Subdomain(source.NetworkName) {
+			errs = append(errs, field.Invalid(fieldPath.Child("networkName"), source.NetworkName, msg))
+		}
 	}
 	return errs
 }
